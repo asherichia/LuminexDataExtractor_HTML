@@ -1,0 +1,3294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Luminex Analysis Tool</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Papa-Parse/5.4.1/papaparse.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.25.1/full/pyodide.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #f5f5f5;
+            color: #333;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 2rem;
+            border-radius: 10px;
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+
+        .section {
+            background: white;
+            border-radius: 10px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .section h2 {
+            color: #333;
+            margin-bottom: 1rem;
+            border-bottom: 2px solid #e0e0e0;
+            padding-bottom: 0.5rem;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: #555;
+        }
+
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 1rem;
+        }
+
+        .form-group input:focus, .form-group select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: background-color 0.3s;
+        }
+
+        .btn:hover {
+            background: #5a6fd8;
+        }
+
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            width: auto;
+            margin-right: 0.5rem;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1rem;
+        }
+
+        .file-input {
+            position: relative;
+            display: inline-block;
+            cursor: pointer;
+            background: #f8f9fa;
+            border: 2px dashed #dee2e6;
+            border-radius: 5px;
+            padding: 2rem;
+            text-align: center;
+            transition: all 0.3s;
+        }
+
+        .file-input:hover {
+            border-color: #667eea;
+            background: #f0f4ff;
+        }
+
+        .file-input input[type="file"] {
+            position: absolute;
+            opacity: 0;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: #e0e0e0;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 1rem 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            width: 0%;
+            transition: width 0.3s;
+        }
+
+        .results {
+            background: #f8f9fa;
+            border-radius: 5px;
+            padding: 1rem;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 0.9rem;
+        }
+
+        .graph-container {
+            margin: 1rem 0;
+            padding: 1rem;
+            background: white;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .graph-container canvas {
+            max-width: 100% !important;
+            height: 400px !important;
+            display: block;
+        }
+        
+        .chart-container {
+            width: 100%;
+            height: 400px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .status {
+            padding: 0.75rem;
+            border-radius: 5px;
+            margin: 1rem 0;
+            text-align: center;
+            font-weight: 600;
+        }
+
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .download-section {
+            display: none;
+            margin-top: 2rem;
+        }
+
+        .download-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.5rem;
+            border-bottom: 1px solid #eee;
+        }
+
+        .download-item:last-child {
+            border-bottom: none;
+        }
+
+        .tab-container {
+            margin-top: 2rem;
+        }
+
+        .tab-buttons {
+            display: flex;
+            background: #f8f9fa;
+            border-radius: 5px;
+            padding: 0.25rem;
+            margin-bottom: 1rem;
+        }
+
+        .tab-button {
+            flex: 1;
+            padding: 0.75rem;
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            border-radius: 3px;
+            transition: all 0.3s;
+        }
+
+        .tab-button.active {
+            background: white;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+            
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Luminex Analysis Tool</h1>
+            <p>Web-based implementation of the Combined Analysis script (with SciPy curve fitting)</p>
+        </div>
+
+        <div class="section">
+            <h2>1. File Selection</h2>
+            <div class="form-group">
+                <label for="csvFile">Input CSV File:</label>
+                <div class="file-input">
+                    <input type="file" id="csvFile" accept=".csv" />
+                    <p>Click here to select your Luminex CSV file</p>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label for="outputFolder">Output Folder Name:</label>
+                <input type="text" id="outputFolder" value="LuminexResults" placeholder="Enter folder name for outputs" />
+            </div>
+            
+            <div class="form-group">
+                <label for="outputDirectory">Output Directory:</label>
+                <button class="btn" id="selectOutputDir">Select Output Directory</button>
+                <p id="selectedDirPath" style="margin-top: 0.5rem; font-style: italic; color: #666;">No directory selected (files will download to default location)</p>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>2. File Preprocessing</h2>
+            <div class="grid">
+                <div class="form-group">
+                    <label for="plateFormat">Plate Format:</label>
+                    <select id="plateFormat">
+                        <option value="96-well">96-well</option>
+                        <option value="384-well">384-well</option>
+                    </select>
+                </div>
+                
+                <div class="checkbox-group">
+                    <input type="checkbox" id="fullPlate" checked />
+                    <label for="fullPlate">Full Plate</label>
+                </div>
+                
+                <div class="form-group">
+                    <label for="numWells">Number of Wells:</label>
+                    <input type="number" id="numWells" value="96" min="1" max="384" disabled />
+                </div>
+            </div>
+            
+            <button class="btn" id="preprocessBtn" disabled>Preprocess File</button>
+        </div>
+
+        <div class="section">
+            <h2>3. Analysis Options</h2>
+            <div class="grid">
+                <div class="form-group">
+                    <label for="standardsFile">Standards CSV (optional):</label>
+                    <div class="file-input">
+                        <input type="file" id="standardsFile" accept=".csv" />
+                        <p id="standardsFileStatus">Click to select standards file</p>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="cutoffFile">Cutoff CSV (optional):</label>
+                    <div class="file-input">
+                        <input type="file" id="cutoffFile" accept=".csv" />
+                        <p id="cutoffFileStatus">Click to select cutoff file</p>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="bgSample">Background Sample:</label>
+                    <input type="text" id="bgSample" value="Background0" />
+                </div>
+                
+                <div class="form-group">
+                    <label for="dilutionFactor">Dilution Multiplier:</label>
+                    <input type="number" id="dilutionFactor" value="1" min="0.01" step="0.01" />
+                </div>
+                
+                <div class="checkbox-group">
+                    <input type="checkbox" id="detectHook" checked />
+                    <label for="detectHook">Detect Hook Effect</label>
+                </div>
+                
+                <div class="checkbox-group">
+                    <input type="checkbox" id="filterLowStd" />
+                    <label for="filterLowStd">Filter Low Standards</label>
+                    <small style="display: block; color: #666; margin-top: 0.25rem;">
+                        (Remove low standards that are too close to background or don't follow dose-response pattern)
+                    </small>
+                </div>
+            </div>
+            
+            <div id="validationStatus" style="display: none; margin-top: 1rem; padding: 1rem; border-radius: 5px;">
+                <h4>Analysis Validation:</h4>
+                <div id="validationDetails"></div>
+            </div>
+            
+            <button class="btn" id="validateOptionsBtn" style="margin-top: 1rem;" disabled>Validate Analysis Setup</button>
+        </div>
+
+        <div class="section">
+            <h2>4. Analyte Selection</h2>
+            <div class="form-group">
+                <label for="analyteSelect">Select Analyte:</label>
+                <select id="analyteSelect" disabled>
+                    <option value="">Please preprocess file first</option>
+                </select>
+            </div>
+            
+            <button class="btn" id="runAnalysisBtn" disabled>Run Analysis</button>
+        </div>
+
+        <div class="section" id="progressSection" style="display: none;">
+            <h2>Analysis Progress</h2>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <div id="statusMessage" class="status info">Ready to begin analysis...</div>
+        </div>
+
+        <div class="section" id="resultsSection" style="display: none;">
+            <h2>5. Results</h2>
+            
+            <div class="tab-container">
+                <div class="tab-buttons">
+                    <button class="tab-button active" data-tab="graphs">Graphs</button>
+                    <button class="tab-button" data-tab="data">Data Tables</button>
+                    <button class="tab-button" data-tab="summary">Summary</button>
+                </div>
+                
+                <div class="tab-content active" id="graphs">
+                    <div style="margin-bottom: 1rem; padding: 1rem; background: #f8f9fa; border-radius: 5px; border: 1px solid #e9ecef;">
+                        <label style="font-weight: 600; margin-bottom: 0.5rem; display: block;">Global Chart Axis Controls:</label>
+                        <div style="display: flex; gap: 10px;">
+                            <button class="btn" id="globalXAxisToggle" style="font-size: 12px; padding: 5px 10px;" disabled>X-Axis: Log</button>
+                            <button class="btn" id="globalYAxisToggle" style="font-size: 12px; padding: 5px 10px;" disabled>Y-Axis: Linear</button>
+                        </div>
+                        <small style="color: #666; font-size: 0.9em; margin-top: 5px; display: block;">Use these controls to toggle all chart axes between linear and logarithmic scales.</small>
+                    </div>
+                    <div id="graphsContainer"></div>
+                </div>
+                
+                <div class="tab-content" id="data">
+                    <div id="dataTablesContainer"></div>
+                </div>
+                
+                <div class="tab-content" id="summary">
+                    <div id="summaryContainer"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section download-section" id="downloadSection">
+            <h2>6. Download Results</h2>
+            <div id="downloadList"></div>
+            <button class="btn" id="downloadAllBtn">Download All Files as ZIP</button>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let processedData = null;
+        let analytes = [];
+        let analysisResults = {};
+        let generatedFiles = {};
+        let outputDirectoryHandle = null;
+        let currentOutputFolder = null;
+        let cleanDataFile = null;
+        let pyodideInstance = null; // For Pyodide
+        
+        // Global chart axis state
+        let globalXAxisLog = true;  // Default X-axis to log
+        let globalYAxisLog = false; // Default Y-axis to linear
+        let allCharts = []; // Array to store all chart instances
+
+        // Initialize event listeners
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM loaded, initializing...');
+            initializeEventListeners();
+            console.log('Event listeners initialized');
+        });
+
+        function initializeEventListeners() {
+            // Check all required elements exist
+            const requiredElements = ['csvFile', 'preprocessBtn', 'outputFolder', 'plateFormat', 'fullPlate', 'numWells'];
+            requiredElements.forEach(id => {
+                const element = document.getElementById(id);
+                console.log(`Element ${id}:`, element ? 'Found' : 'NOT FOUND');
+            });
+            
+            // File inputs
+            const csvFile = document.getElementById('csvFile');
+            if (csvFile) {
+                csvFile.addEventListener('change', handleFileSelection);
+                console.log('CSV file listener added');
+            }
+            
+            const standardsFile = document.getElementById('standardsFile');
+            if (standardsFile) {
+                standardsFile.addEventListener('change', handleStandardsFile);
+                console.log('Standards file listener added');
+                
+                // Add additional reliability by resetting on click
+                standardsFile.addEventListener('click', function() {
+                    this.value = ''; // Reset to ensure change event fires even for same file
+                });
+            } else {
+                console.error('Standards file input not found');
+            }
+            
+            const cutoffFile = document.getElementById('cutoffFile');
+            if (cutoffFile) {
+                cutoffFile.addEventListener('change', handleCutoffFile);
+                console.log('Cutoff file listener added');
+                
+                // Add additional reliability by resetting on click
+                cutoffFile.addEventListener('click', function() {
+                    this.value = ''; // Reset to ensure change event fires even for same file
+                });
+            } else {
+                console.error('Cutoff file input not found');
+            }
+            
+            // Plate format changes
+            const plateFormat = document.getElementById('plateFormat');
+            if (plateFormat) {
+                plateFormat.addEventListener('change', updateWellCount);
+            }
+            
+            const fullPlate = document.getElementById('fullPlate');
+            if (fullPlate) {
+                fullPlate.addEventListener('change', toggleWellCount);
+            }
+            
+            // Buttons
+            const preprocessBtn = document.getElementById('preprocessBtn');
+            if (preprocessBtn) {
+                preprocessBtn.addEventListener('click', preprocessFile);
+                console.log('Preprocess button listener added');
+            } else {
+                console.error('preprocessBtn not found during initialization!');
+            }
+            
+            const runAnalysisBtn = document.getElementById('runAnalysisBtn');
+            if (runAnalysisBtn) {
+                runAnalysisBtn.addEventListener('click', runAnalysis);
+            }
+            
+            const downloadAllBtn = document.getElementById('downloadAllBtn');
+            if (downloadAllBtn) {
+                downloadAllBtn.addEventListener('click', downloadAllFiles);
+            }
+            
+            const selectOutputDir = document.getElementById('selectOutputDir');
+            if (selectOutputDir) {
+                selectOutputDir.addEventListener('click', selectOutputDirectory);
+            }
+            
+            const validateOptionsBtn = document.getElementById('validateOptionsBtn');
+            if (validateOptionsBtn) {
+                validateOptionsBtn.addEventListener('click', validateAnalysisSetup);
+            }
+            
+            // Tab navigation
+            document.querySelectorAll('.tab-button').forEach(button => {
+                button.addEventListener('click', function() {
+                    switchTab(this.dataset.tab);
+                });
+            });
+            
+            // Global axis controls
+            const globalXAxisToggle = document.getElementById('globalXAxisToggle');
+            if (globalXAxisToggle) {
+                globalXAxisToggle.addEventListener('click', toggleGlobalXAxis);
+            }
+            
+            const globalYAxisToggle = document.getElementById('globalYAxisToggle');
+            if (globalYAxisToggle) {
+                globalYAxisToggle.addEventListener('click', toggleGlobalYAxis);
+            }
+        }
+        
+        function toggleGlobalXAxis() {
+            globalXAxisLog = !globalXAxisLog;
+            const btn = document.getElementById('globalXAxisToggle');
+            btn.textContent = globalXAxisLog ? 'X-Axis: Log' : 'X-Axis: Linear';
+            
+            // Update all charts
+            allCharts.forEach(chart => {
+                if (chart && chart.options && chart.options.scales && chart.options.scales.x) {
+                    chart.options.scales.x.type = globalXAxisLog ? 'logarithmic' : 'linear';
+                    chart.options.scales.x.title.text = globalXAxisLog ? 'Concentration (Log Scale)' : 'Concentration (Linear Scale)';
+                    chart.update('none');
+                }
+            });
+        }
+        
+        function toggleGlobalYAxis() {
+            globalYAxisLog = !globalYAxisLog;
+            const btn = document.getElementById('globalYAxisToggle');
+            btn.textContent = globalYAxisLog ? 'Y-Axis: Log' : 'Y-Axis: Linear';
+            
+            // Update all charts
+            allCharts.forEach(chart => {
+                if (chart && chart.options && chart.options.scales && chart.options.scales.y) {
+                    chart.options.scales.y.type = globalYAxisLog ? 'logarithmic' : 'linear';
+                    chart.options.scales.y.title.text = globalYAxisLog ? 'Corrected MFI (Log Scale)' : 'Corrected MFI (Linear Scale)';
+                    chart.update('none');
+                }
+            });
+        }
+        
+        function formatNumber(value) {
+            if (value === null || value === undefined || !isFinite(value)) {
+                return 'N/A';
+            }
+            
+            const absValue = Math.abs(value);
+            
+            // Use scientific notation for numbers >= 1,000,000 (6+ digits)
+            if (absValue >= 1000000) {
+                return value.toExponential(2);
+            }
+            
+            // For numbers less than 1000000, use whole numbers with commas
+            if (absValue >= 1) {
+                return Math.round(value).toLocaleString();
+            }
+            
+            // For small decimal numbers, use fixed decimal places
+            if (absValue >= 0.01) {
+                return value.toFixed(2);
+            }
+            
+            // For very small numbers, use scientific notation
+            return value.toExponential(2);
+        }
+        
+        function formatMfiConc(value) {
+            // Special formatting for MFI and concentration values - always 3 decimal places
+            if (value === null || value === undefined || !isFinite(value)) {
+                return 'N/A';
+            }
+            
+            const absValue = Math.abs(value);
+            
+            // Use scientific notation for numbers >= 1,000,000 (6+ digits)
+            if (absValue >= 1000000) {
+                return value.toExponential(3);
+            }
+            
+            // For all other numbers, use 3 decimal places
+            return value.toFixed(3);
+        }
+
+        async function loadPyodideAndPackages() {
+            const runAnalysisBtn = document.getElementById('runAnalysisBtn');
+            const originalRunBtnText = runAnalysisBtn ? runAnalysisBtn.textContent : "Run Analysis";
+
+            if (!pyodideInstance) {
+                updateStatus('Loading Pyodide runtime (this may take a moment)...', 'info');
+                if(runAnalysisBtn) {
+                    runAnalysisBtn.disabled = true;
+                    runAnalysisBtn.textContent = "Loading SciPy...";
+                }
+
+                try {
+                    pyodideInstance = await loadPyodide({
+                        indexURL: "https://cdn.jsdelivr.net/pyodide/v0.25.1/full/"
+                    });
+                    updateStatus('Pyodide loaded. Loading packages (numpy, scipy)...', 'info');
+                    await pyodideInstance.loadPackage(['numpy', 'scipy']);
+                    updateStatus('Python (SciPy, Numpy) loaded successfully.', 'success');
+                } catch (error) {
+                    console.error("Pyodide or package loading failed:", error);
+                    updateStatus(`Error loading Pyodide/SciPy: ${error}. Analysis may not be accurate.`, 'error');
+                    pyodideInstance = null; // Prevent further attempts if failed
+                    if(runAnalysisBtn) runAnalysisBtn.textContent = originalRunBtnText; // Reset button text
+                    throw error; // Propagate error
+                } finally {
+                     if(runAnalysisBtn && processedData && document.getElementById('analyteSelect').value) {
+                        runAnalysisBtn.disabled = false;
+                     }
+                     if(runAnalysisBtn) runAnalysisBtn.textContent = originalRunBtnText;
+                }
+            }
+            return pyodideInstance;
+        }
+
+
+        function handleFileSelection(event) {
+            const file = event.target.files[0];
+            console.log('File selection triggered:', file);
+            if (file) {
+                updateStatus('File selected: ' + file.name, 'info');
+                const preprocessBtn = document.getElementById('preprocessBtn');
+                console.log('Preprocess button found:', preprocessBtn);
+                if (preprocessBtn) {
+                    preprocessBtn.disabled = false;
+                    console.log('Preprocess button enabled');
+                } else {
+                    console.error('Preprocess button not found!');
+                }
+                
+                // Generate timestamp for output folder
+                const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+                const outputFolder = document.getElementById('outputFolder');
+                if (outputFolder) {
+                    outputFolder.value = `LuminexResults_${timestamp}`;
+                }
+            } else {
+                console.log('No file selected');
+            }
+        }
+
+        function handleStandardsFile(event) {
+            try {
+                const file = event.target.files[0];
+                if (file) {
+                    // Validate file type
+                    if (!file.name.toLowerCase().endsWith('.csv')) {
+                        updateStatus('Error: Standards file must be a CSV file', 'error');
+                        document.getElementById('standardsFileStatus').textContent = 'Error: Must be a CSV file';
+                        document.getElementById('standardsFileStatus').style.color = '#dc3545';
+                        return;
+                    }
+                    
+                    updateStatus('Standards file selected: ' + file.name, 'info');
+                    document.getElementById('standardsFileStatus').textContent = 'Selected: ' + file.name;
+                    document.getElementById('standardsFileStatus').style.color = '#28a745';
+                    console.log('Standards file selected:', file.name, 'Size:', file.size, 'bytes');
+                } else {
+                    document.getElementById('standardsFileStatus').textContent = 'Click to select standards file';
+                    document.getElementById('standardsFileStatus').style.color = '';
+                }
+            } catch (error) {
+                console.error('Error handling standards file:', error);
+                updateStatus('Error selecting standards file: ' + error.message, 'error');
+                document.getElementById('standardsFileStatus').textContent = 'Error selecting file';
+                document.getElementById('standardsFileStatus').style.color = '#dc3545';
+            }
+        }
+
+        function handleCutoffFile(event) {
+            try {
+                const file = event.target.files[0];
+                if (file) {
+                    // Validate file type
+                    if (!file.name.toLowerCase().endsWith('.csv')) {
+                        updateStatus('Error: Cutoff file must be a CSV file', 'error');
+                        document.getElementById('cutoffFileStatus').textContent = 'Error: Must be a CSV file';
+                        document.getElementById('cutoffFileStatus').style.color = '#dc3545';
+                        return;
+                    }
+                    
+                    updateStatus('Cutoff file selected: ' + file.name, 'info');
+                    document.getElementById('cutoffFileStatus').textContent = 'Selected: ' + file.name;
+                    document.getElementById('cutoffFileStatus').style.color = '#28a745';
+                    console.log('Cutoff file selected:', file.name, 'Size:', file.size, 'bytes');
+                } else {
+                    document.getElementById('cutoffFileStatus').textContent = 'Click to select cutoff file';
+                    document.getElementById('cutoffFileStatus').style.color = '';
+                }
+            } catch (error) {
+                console.error('Error handling cutoff file:', error);
+                updateStatus('Error selecting cutoff file: ' + error.message, 'error');
+                document.getElementById('cutoffFileStatus').textContent = 'Error selecting file';
+                document.getElementById('cutoffFileStatus').style.color = '#dc3545';
+            }
+        }
+
+        function updateWellCount() {
+            const plateFormat = document.getElementById('plateFormat').value;
+            const wellInput = document.getElementById('numWells');
+            
+            if (plateFormat === '96-well') {
+                wellInput.value = '96';
+            } else {
+                wellInput.value = '384';
+            }
+        }
+
+        function toggleWellCount() {
+            const fullPlate = document.getElementById('fullPlate').checked;
+            const wellInput = document.getElementById('numWells');
+            
+            wellInput.disabled = fullPlate;
+            if (fullPlate) {
+                updateWellCount();
+            }
+        }
+
+        function updateStatus(message, type = 'info') {
+            const statusEl = document.getElementById('statusMessage');
+            statusEl.textContent = message;
+            statusEl.className = `status ${type}`;
+            
+            // Show progress section
+            document.getElementById('progressSection').style.display = 'block';
+        }
+
+        function updateProgress(percent) {
+            document.getElementById('progressFill').style.width = percent + '%';
+        }
+
+        async function preprocessFile() {
+            const fileInput = document.getElementById('csvFile');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                updateStatus('Please select a CSV file first', 'error');
+                return;
+            }
+
+            console.log('Starting file preprocessing...');
+            updateStatus('Reading CSV file...', 'info');
+            updateProgress(10);
+
+            // Use the fallback CSV parsing method directly (more reliable)
+            const reader = new FileReader();
+            
+            reader.onload = async function(e) {
+                try {
+                    console.log('FileReader completed, processing text...');
+                    const text = e.target.result;
+                    console.log('File text length:', text.length);
+                    
+                    // Proper CSV parsing to handle quoted fields like "1(1,A1)"
+                    const lines = text.split(/\r?\n/);
+                    console.log('Total lines found:', lines.length);
+                    
+                    const csvData = lines.map(line => {
+                        // Parse CSV line respecting quotes
+                        const result = [];
+                        let current = '';
+                        let inQuotes = false;
+                        
+                        for (let i = 0; i < line.length; i++) {
+                            const char = line[i];
+                            
+                            if (char === '"') {
+                                inQuotes = !inQuotes;
+                            } else if (char === ',' && !inQuotes) {
+                                result.push(current.trim());
+                                current = '';
+                            } else {
+                                current += char;
+                            }
+                        }
+                        
+                        // Add the last field
+                        result.push(current.trim());
+                        
+                        return result;
+                    });
+                    
+                    console.log('Parsed into', csvData.length, 'rows');
+                    updateProgress(30);
+                    
+                    // Continue with processing
+                    updateStatus('Processing CSV data...', 'info');
+                    processedData = preprocessCSVData(csvData);
+                    updateProgress(40);
+                    
+                    // Create clean data file and leftover file
+                    updateStatus('Creating output files...', 'info');
+                    const outputResult = await createOutputFiles(processedData, csvData);
+                    cleanDataFile = outputResult.cleanData;
+                    updateProgress(60);
+                    
+                    updateStatus('Extracting analytes...', 'info');
+                    analytes = extractAnalytes(processedData);
+                    updateProgress(80);
+                    
+                    updateAnalyteDropdown();
+                    
+                    updateProgress(100);
+                    updateStatus(`File preprocessed successfully. Found ${analytes.length} analytes. Created clean data file (${processedData.data.length} samples).`, 'success');
+                    
+                    // Check for standards in the data (case-sensitive check)
+                    const standardSamples = processedData.data.filter(row => {
+                        const sampleName = String(row.Sample || row.sample || '');
+                        return sampleName.includes('Standard') || sampleName.includes('standard') || 
+                               sampleName.includes('Std') || sampleName.includes('std') ||
+                               sampleName.includes('Cal') || sampleName.includes('cal');
+                    });
+                    
+                    // Show some preprocessing info
+                    const infoDiv = document.createElement('div');
+                    infoDiv.style.marginTop = '1rem';
+                    infoDiv.style.padding = '1rem';
+                    infoDiv.style.backgroundColor = '#f8f9fa';
+                    infoDiv.style.borderRadius = '5px';
+                    
+                    let standardsInfo = '';
+                    if (standardSamples.length > 0) {
+                        const standardNames = standardSamples.map(row => row.Sample || row.sample).slice(0, 5);
+                        standardsInfo = `<br>• Standard samples detected: ${standardNames.join(', ')}${standardSamples.length > 5 ? ` and ${standardSamples.length - 5} more` : ''}<br>• <strong style="color: #d63384;">IMPORTANT:</strong> Upload a standards CSV file with concentration values for analysis`;
+                    } else {
+                        standardsInfo = '<br>• No standard samples detected in data';
+                    }
+                    
+                    infoDiv.innerHTML = `
+                        <strong>Preprocessing Results:</strong><br>
+                        • Total samples: ${processedData.data.length}<br>
+                        • Analytes detected: ${analytes.join(', ')}<br>
+                        • Clean data file and leftover data file created${standardsInfo}<br>
+                        • Ready for analysis
+                    `;
+                    
+                    const progressSection = document.getElementById('progressSection');
+                    if (!progressSection.querySelector('.preprocessing-info')) {
+                        infoDiv.className = 'preprocessing-info';
+                        progressSection.appendChild(infoDiv);
+                    }
+                    
+                    // Show download section with preprocessing files
+                    showPreprocessingDownloads();
+                    
+                    // Enable validation and analysis buttons
+                    document.getElementById('validateOptionsBtn').disabled = false;
+                    document.getElementById('runAnalysisBtn').disabled = false;
+                    console.log('Preprocessing completed successfully');
+                    
+                } catch (error) {
+                    console.error('Preprocessing error:', error);
+                    updateStatus('Error preprocessing file: ' + error.message, 'error');
+                }
+            };
+            
+            reader.onerror = function(error) {
+                console.error('FileReader error:', error);
+                updateStatus('Error reading file: ' + error.message, 'error');
+            };
+            
+            reader.readAsText(file);
+        }
+
+
+        async function createOutputFiles(processedData, rawData) {
+            console.log('Creating output files...');
+            const outputFolder = document.getElementById('outputFolder').value;
+            
+            // Create clean data CSV (just the processed data)
+            const cleanCSV = processedDataToCSV(processedData);
+            
+            // Create leftover data file (everything before and after the main data)
+            const leftoverCSV = createLeftoverDataCSV(rawData, processedData);
+            
+            // Store files for later download
+            if (!generatedFiles) generatedFiles = {};
+            generatedFiles[`${outputFolder}_clean_data.csv`] = cleanCSV;
+            generatedFiles[`${outputFolder}_leftover_data.csv`] = leftoverCSV;
+            
+            console.log('Output files created successfully');
+            
+            return {
+                cleanData: cleanCSV,
+                leftoverData: leftoverCSV
+            };
+        }
+        
+        function processedDataToCSV(processedData) {
+            if (!processedData || !processedData.headers || !processedData.data) {
+                throw new Error('Invalid processed data structure');
+            }
+            
+            let csv = processedData.headers.join(',') + '\n';
+            
+            processedData.data.forEach(row => {
+                const csvRow = processedData.headers.map(header => {
+                    const value = row[header] || '';
+                    // Escape commas and quotes in CSV values
+                    if (String(value).includes(',') || String(value).includes('"')) {
+                        return '"' + String(value).replace(/"/g, '""') + '"';
+                    }
+                    return value;
+                });
+                csv += csvRow.join(',') + '\n';
+            });
+            
+            return csv;
+        }
+        
+        function createLeftoverDataCSV(rawData, processedData) {
+            // Find where the processed data starts and ends in the raw data
+            let processedStart = -1;
+            let processedEnd = -1;
+            
+            // Look for the header row containing "Sample"
+            for (let i = 0; i < rawData.length; i++) {
+                if (rawData[i] && rawData[i].length > 0) {
+                    for (let j = 0; j < rawData[i].length; j++) {
+                        const cell = String(rawData[i][j]).toLowerCase().trim();
+                        if (cell === 'sample') {
+                            processedStart = i;
+                            // Estimate end based on processed data length
+                            processedEnd = i + processedData.data.length + 1; // +1 for header
+                            break;
+                        }
+                    }
+                    if (processedStart !== -1) break;
+                }
+            }
+            
+            let leftoverCSV = '';
+            
+            // Add header comment
+            leftoverCSV += '# Leftover data from Luminex file preprocessing\n';
+            leftoverCSV += '# This file contains data that was not included in the main analysis\n\n';
+            
+            // Add data before processed section
+            if (processedStart > 0) {
+                leftoverCSV += '# Data before main analysis section:\n';
+                for (let i = 0; i < processedStart; i++) {
+                    if (rawData[i] && rawData[i].length > 0) {
+                        leftoverCSV += rawData[i].join(',') + '\n';
+                    }
+                }
+                leftoverCSV += '\n';
+            }
+            
+            // Add data after processed section
+            if (processedEnd < rawData.length) {
+                leftoverCSV += '# Data after main analysis section:\n';
+                for (let i = processedEnd; i < rawData.length; i++) {
+                    if (rawData[i] && rawData[i].length > 0) {
+                        leftoverCSV += rawData[i].join(',') + '\n';
+                    }
+                }
+            }
+            
+            return leftoverCSV;
+        }
+
+        function preprocessCSVData(rawData) {
+            console.log('Starting CSV preprocessing...');
+            console.log('Total rows in raw data:', rawData.length);
+            
+            if (!rawData || rawData.length === 0) {
+                throw new Error('No data found in CSV file');
+            }
+            
+            const plateFormat = document.getElementById('plateFormat').value;
+            const isFullPlate = document.getElementById('fullPlate').checked;
+            const numWells = parseInt(document.getElementById('numWells').value);
+            
+            // Look for the data marker "DataType:","Median" or find the Sample column
+            let dataStartRow = -1;
+            let headerRow = -1;
+            
+            // Search for the header row containing "Sample" - look in all cells, not just first
+            for (let i = 0; i < rawData.length; i++) {
+                if (rawData[i] && rawData[i].length > 0) {
+                    // Check all cells in the row for "Sample"
+                    for (let j = 0; j < rawData[i].length; j++) {
+                        const cell = String(rawData[i][j]).toLowerCase().trim();
+                        if (cell === 'sample') {
+                            headerRow = i;
+                            dataStartRow = i + 1;
+                            break;
+                        }
+                    }
+                    if (headerRow !== -1) break;
+                }
+            }
+            
+            // If not found, try the original approach (row 51)
+            if (headerRow === -1) {
+                console.log('Using fallback approach - row 51');
+                headerRow = 51; // Typically header is on row 52 (index 51)
+                dataStartRow = 52; // Data starts on row 53 (index 52)
+                
+                // Check if this row exists and has data
+                if (rawData.length <= headerRow || !rawData[headerRow]) {
+                    // Try another common header row if default fails (e.g. for some Bio-Plex outputs)
+                     headerRow = 8; // A common alternative
+                     dataStartRow = 9;
+                     if (rawData.length <= headerRow || !rawData[headerRow] || !rawData[headerRow].some(h => String(h).toLowerCase().trim() === 'sample')) {
+                        throw new Error('Could not find header row ("Sample"). CSV format may be different than expected. Standard headers usually at row 9 or 52.');
+                     }
+                }
+            }
+            
+            console.log('Header row found at:', headerRow);
+            console.log('Data starts at row:', dataStartRow);
+            
+            // Extract headers
+            const headers = rawData[headerRow];
+            if (!headers || headers.length === 0) {
+                throw new Error('No headers found at row ' + headerRow);
+            }
+            
+            console.log('Headers found:', headers.slice(0, 10), '...');
+            
+            // Calculate data end row more intelligently
+            let dataEndRow;
+            
+            // First, try to find where the data actually ends by looking for empty rows
+            let actualDataRows = 0;
+            for (let i = dataStartRow; i < rawData.length; i++) {
+                if (rawData[i] && rawData[i].length > 0) {
+                    // Check if this row has meaningful data (not all empty)
+                    const hasData = rawData[i].some(cell => cell && String(cell).trim() !== '');
+                    if (hasData) {
+                        actualDataRows++;
+                    } else {
+                        // Found empty row, likely end of data
+                        break;
+                    }
+                } else {
+                    // Found empty row
+                    break;
+                }
+            }
+            
+            console.log('Found', actualDataRows, 'actual data rows');
+            
+            // Use the smaller of: expected wells or actual data found
+            if (isFullPlate) {
+                const expectedWells = plateFormat === '96-well' ? 96 : 384;
+                dataEndRow = dataStartRow + Math.min(actualDataRows, expectedWells) - 1;
+            } else {
+                dataEndRow = dataStartRow + Math.min(actualDataRows, numWells) - 1;
+            }
+            
+            // Ensure we don't exceed available data
+            dataEndRow = Math.min(dataEndRow, rawData.length - 1);
+            
+            console.log('Data end row calculated as:', dataEndRow);
+            
+            // Extract data rows
+            const dataRows = [];
+            for (let i = dataStartRow; i <= dataEndRow; i++) {
+                if (i < rawData.length && rawData[i]) {
+                    dataRows.push(rawData[i]);
+                }
+            }
+            
+            console.log('Extracted', dataRows.length, 'data rows');
+            
+            if (dataRows.length === 0) {
+                throw new Error('No data rows found. Check plate format settings or file integrity.');
+            }
+            
+            // Convert to objects with proper headers
+            const processedRows = dataRows.map((row, index) => {
+                const obj = {};
+                headers.forEach((header, headerIndex) => {
+                    if (header && header.trim()) { // Ensure header is not empty or just whitespace
+                        let value = row[headerIndex] || '';
+                        obj[header.trim()] = value;
+                    }
+                });
+                return obj;
+            });
+            
+            // Filter out completely empty rows
+            const filteredRows = processedRows.filter(row => {
+                return Object.values(row).some(value => value && String(value).trim() !== '');
+            });
+            
+            console.log('Final processed rows:', filteredRows.length);
+            
+            return {
+                headers: headers.filter(h => h && h.trim()), // Filter out empty headers
+                data: filteredRows
+            };
+        }
+
+        function extractAnalytes(processedData) {
+            const headers = processedData.headers;
+            console.log('Extracting analytes from headers:', headers);
+            
+            try {
+                // Find Sample column (case-insensitive)
+                let sampleIndex = -1;
+                let totalEventsIndex = -1;
+                
+                for (let i = 0; i < headers.length; i++) {
+                    const header = String(headers[i]).toLowerCase().trim();
+                    if (header === 'sample') {
+                        sampleIndex = i;
+                    }
+                    if (header === 'total events' || header === 'totalevents') { // Common variations
+                        totalEventsIndex = i;
+                    }
+                }
+                
+                console.log('Found indices - Sample:', sampleIndex, 'Total Events:', totalEventsIndex);
+                
+                if (sampleIndex === -1) {
+                    // Try another common name for sample column
+                    sampleIndex = headers.findIndex(h => String(h).toLowerCase().trim().includes("well") && String(h).toLowerCase().trim().includes("id"));
+                     if (sampleIndex === -1) {
+                        throw new Error("CSV must contain a 'Sample' or 'Well ID' column. Found headers: " + headers.join(', '));
+                    }
+                }
+                
+                if (totalEventsIndex === -1) {
+                    // If 'Total Events' is not found, try to infer the end of analyte block
+                    // This is less reliable. Assuming analytes are before a known non-analyte column if 'Total Events' is missing.
+                    // For now, we'll keep it strict as per original logic.
+                    // If you often encounter files without 'Total Events', this part might need a heuristic.
+                    // One heuristic: analytes are typically numeric columns after 'Sample' and before other metadata-like columns.
+                    // For now, let's look for 'Bead ID' as an alternative end marker if 'Total Events' is missing
+                    totalEventsIndex = headers.findIndex(h => String(h).toLowerCase().trim() === 'bead id');
+                    if (totalEventsIndex === -1) {
+                         // Fallback: assume analytes are all columns between 'Sample' and the first column that's clearly not an MFI value
+                         // This is very heuristic. A better approach is to ensure 'Total Events' is present or use a more robust end marker.
+                         // For now, let's take all columns after sampleIndex if totalEventsIndex is not found, up to a reasonable limit.
+                         // This part can be improved if the CSV structure varies significantly.
+                         console.warn("'Total Events' column not found. Attempting to infer analyte range. This might be inaccurate.");
+                         totalEventsIndex = headers.length; // Take all remaining as potential analytes (will be filtered later if not numeric)
+                    }
+                }
+                
+                const analyteHeaders = headers.slice(sampleIndex + 1, totalEventsIndex).filter(h => {
+                    // Further filter to ensure these are likely analyte MFI columns
+                    // Check if at least one data row has a numeric value for this header
+                    if (!h || !h.trim()) return false; // Skip empty headers
+                    return processedData.data.some(row => !isNaN(parseFloat(row[h])));
+                });
+
+                console.log('Extracted analyte headers:', analyteHeaders);
+                
+                if (analyteHeaders.length === 0) {
+                    throw new Error("No analyte columns found between 'Sample' and 'Total Events' (or inferred end) columns, or columns are not numeric.");
+                }
+                
+                return analyteHeaders;
+            } catch (error) {
+                console.error("Error extracting analytes: ", error.message, "Headers processed: ", headers);
+                updateStatus("Error extracting analytes: " + error.message + ". Check console for details.", "error");
+                throw new Error("Error extracting analytes: " + error.message);
+            }
+        }
+
+        function updateAnalyteDropdown() {
+            const select = document.getElementById('analyteSelect');
+            select.innerHTML = '<option value="All">All Analytes</option>';
+            
+            analytes.forEach(analyte => {
+                const option = document.createElement('option');
+                option.value = analyte;
+                option.textContent = analyte;
+                select.appendChild(option);
+            });
+            
+            select.disabled = false;
+        }
+
+        async function loadStandardsFile(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                
+                reader.onload = function(e) {
+                    try {
+                        const text = e.target.result;
+                        const lines = text.split(/\r?\n/);
+                        
+                        // Parse CSV
+                        const data = lines.map(line => {
+                            return line.split(',').map(cell => cell.trim().replace(/^"|"$/g, ''));
+                        });
+                        
+                        // Find headers
+                        let headerRow = 0; // Assuming headers are on the first line
+                        let headers = data[headerRow];
+                        
+                        // Convert to object format
+                        const standardsMap = {};
+                        for (let i = 1; i < data.length; i++) {
+                            const row = data[i];
+                            if (row.length >= 2 && row[0] && row[1]) { // Ensure Sample and Concentration exist
+                                const sample = row[0].trim();
+                                const concentration = parseFloat(row[1]);
+                                if (!isNaN(concentration)) {
+                                    standardsMap[sample] = concentration;
+                                }
+                            }
+                        }
+                        
+                        console.log('Parsed standards:', standardsMap);
+                        resolve(standardsMap);
+                        
+                    } catch (error) {
+                        reject(new Error('Error parsing standards file: ' + error.message));
+                    }
+                };
+                
+                reader.onerror = function(error) {
+                    reject(new Error('Error reading standards file: ' + error.message));
+                };
+                
+                reader.readAsText(file);
+            });
+        }
+
+        async function loadCutoffFile(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                
+                reader.onload = function(e) {
+                    try {
+                        const text = e.target.result;
+                        const lines = text.split(/\r?\n/).filter(line => line.trim());
+                        
+                        // Parse CSV
+                        const data = lines.map(line => {
+                            return line.split(',').map(cell => cell.trim().replace(/^"|"$/g, ''));
+                        });
+                        
+                        // Find headers (should have 'Analyte' and 'Cutoff' columns)
+                        let headerRow = 0;
+                        let headers = data[headerRow];
+                        
+                        // Find column indices
+                        const analyteCol = headers.findIndex(h => h.toLowerCase().includes('analyte'));
+                        const cutoffCol = headers.findIndex(h => h.toLowerCase().includes('cutoff'));
+                        
+                        if (analyteCol === -1 || cutoffCol === -1) {
+                            reject(new Error('Cutoff file must have "Analyte" and "Cutoff" columns'));
+                            return;
+                        }
+                        
+                        // Convert to object format
+                        const cutoffMap = {};
+                        for (let i = 1; i < data.length; i++) {
+                            const row = data[i];
+                            if (row.length > Math.max(analyteCol, cutoffCol)) {
+                                const analyte = row[analyteCol];
+                                const cutoff = parseFloat(row[cutoffCol]);
+                                
+                                if (analyte && !isNaN(cutoff)) {
+                                    cutoffMap[analyte] = cutoff;
+                                }
+                            }
+                        }
+                        
+                        console.log('Cutoff data loaded:', cutoffMap);
+                        resolve(cutoffMap);
+                    } catch (error) {
+                        reject(error);
+                    }
+                };
+                
+                reader.onerror = function() {
+                    reject(new Error('Failed to read cutoff file'));
+                };
+                
+                reader.readAsText(file);
+            });
+        }
+
+        function mergeStandardsWithData(processedData, standardsMap) {
+            console.log('Starting merge process...');
+            console.log('Standards map:', standardsMap);
+            console.log('Sample data preview:', processedData.data.slice(0, 5).map(row => ({sample: row.Sample || row.sample})));
+            
+            // Create a deep copy of the processed data
+            const mergedData = {
+                headers: [...processedData.headers],
+                data: processedData.data.map(row => ({ ...row }))
+            };
+            
+            // Add Concentration header if not already present
+            if (!mergedData.headers.includes('Concentration')) {
+                mergedData.headers.push('Concentration');
+            }
+            
+            // Track merge statistics
+            let mergeCount = 0;
+            let standardsFound = [];
+            
+            // Merge concentration values into each row (like Python script line 283: df.merge(std_map, on='Sample', how='left'))
+            mergedData.data.forEach(row => {
+                const sampleName = row.Sample || row.sample;
+                if (sampleName && standardsMap[sampleName]) {
+                    row.Concentration = standardsMap[sampleName];
+                    standardsFound.push(`${sampleName} -> ${standardsMap[sampleName]}`);
+                    mergeCount++;
+                    console.log(`Merged: ${sampleName} -> ${standardsMap[sampleName]}`);
+                } else {
+                    // Set to null for non-standards (like pandas left join)
+                    row.Concentration = null;
+                }
+            });
+            
+            console.log(`Merge completed: ${mergeCount} standards matched`);
+            console.log('Standards found:', standardsFound);
+            console.log('Merged data structure:', mergedData);
+            return mergedData;
+        }
+
+        function autoDetectStandards(processedData) {
+            console.log('Auto-detecting standards from sample names...');
+            
+            // Create a deep copy of the processed data
+            const mergedData = {
+                headers: [...processedData.headers],
+                data: processedData.data.map(row => ({ ...row }))
+            };
+            
+            // Add Concentration header if not already present
+            if (!mergedData.headers.includes('Concentration')) {
+                mergedData.headers.push('Concentration');
+            }
+            
+            // Extract standard samples (like Python script lines 288-289)
+            const standardSamples = processedData.data.filter(row => {
+                const sampleName = String(row.Sample || row.sample || '');
+                return sampleName.includes('Standard'); // Python script is case-sensitive for 'Standard'
+            });
+            
+            console.log(`Found ${standardSamples.length} standard samples:`, standardSamples.map(s => s.Sample || s.sample));
+            
+            // Create concentration mapping (like Python script lines 291-299)
+            const standardConcentrations = {};
+            standardSamples.forEach(row => {
+                const sampleName = String(row.Sample || row.sample || '');
+                try {
+                    // Extract number from "StandardN" format
+                    const stdNumMatch = sampleName.match(/Standard(\d+)/i); // Case-insensitive match for "Standard" + number
+                    if (stdNumMatch && stdNumMatch[1]) {
+                        const stdNum = parseInt(stdNumMatch[1]);
+                         // Set concentration based on standard number (same formula as Python)
+                        // std_conc[sample] = 10 ** (5 - 0.5 * (std_num - 1))
+                        const concentration = Math.pow(10, 5 - 0.5 * (stdNum - 1));
+                        standardConcentrations[sampleName] = concentration;
+                        console.log(`Auto-assigned: ${sampleName} -> ${concentration}`);
+                    } else {
+                         standardConcentrations[sampleName] = null; // Could not parse
+                    }
+                } catch (error) {
+                    console.warn(`Could not parse standard number from: ${sampleName}`);
+                    standardConcentrations[sampleName] = null;
+                }
+            });
+            
+            console.log('Auto-detected concentrations:', standardConcentrations);
+            
+            // Apply concentrations to merged data (like Python script df.merge)
+            let assignedCount = 0;
+            mergedData.data.forEach(row => {
+                const sampleName = row.Sample || row.sample;
+                if (sampleName && standardConcentrations.hasOwnProperty(sampleName)) {
+                    row.Concentration = standardConcentrations[sampleName];
+                    if (standardConcentrations[sampleName] !== null) {
+                        assignedCount++;
+                    }
+                } else {
+                    // Set to null for non-standards or if not detected as a standard (like pandas left join)
+                    if(row.Concentration === undefined) row.Concentration = null;
+                }
+            });
+            
+            console.log(`Auto-detection completed: ${assignedCount} standards assigned concentrations`);
+            
+            // Print the inferred standard concentrations for debugging (like Python script lines 310-313)
+            if (Object.keys(standardConcentrations).length > 0) {
+                console.log('Inferred standard concentrations:');
+                Object.entries(standardConcentrations).forEach(([sample, conc]) => {
+                    console.log(`  ${sample}: ${conc}`);
+                });
+            }
+            
+            return mergedData;
+        }
+
+        async function validateAnalysisSetup() {
+            if (!processedData || !processedData.data) {
+                updateStatus('Please preprocess file first', 'error');
+                return;
+            }
+
+            const validationDiv = document.getElementById('validationStatus');
+            const detailsDiv = document.getElementById('validationDetails');
+            
+            validationDiv.style.display = 'block';
+            detailsDiv.innerHTML = '<p>Validating analysis setup...</p>';
+            
+            let validationHTML = '';
+            let allValid = true;
+            
+            // WORKAROUND: Use the clean CSV file that was generated correctly
+            let dataToValidate = processedData.data;
+            
+            // Check if we have the clean data file and parse it directly
+            const outputFolder = document.getElementById('outputFolder').value;
+            const cleanDataKey = `${outputFolder}_clean_data.csv`;
+            
+            if (generatedFiles && generatedFiles[cleanDataKey]) {
+                console.log('Using clean data file for validation instead of broken processedData');
+                try {
+                    // Parse the clean CSV directly
+                    const cleanCSV = generatedFiles[cleanDataKey];
+                    const lines = cleanCSV.split(/\r?\n/);
+                    
+                    // Parse CSV properly handling quoted fields
+                    function parseCSVLine(line) {
+                        const result = [];
+                        let current = '';
+                        let inQuotes = false;
+                        
+                        for (let i = 0; i < line.length; i++) {
+                            const char = line[i];
+                            
+                            if (char === '"') {
+                                inQuotes = !inQuotes;
+                            } else if (char === ',' && !inQuotes) {
+                                result.push(current.trim());
+                                current = '';
+                            } else {
+                                current += char;
+                            }
+                        }
+                        
+                        // Add the last field
+                        result.push(current.trim());
+                        return result;
+                    }
+                    
+                    const headers = parseCSVLine(lines[0]);
+                    
+                    dataToValidate = [];
+                    for (let i = 1; i < lines.length; i++) {
+                        if (lines[i].trim()) {
+                            const values = parseCSVLine(lines[i]);
+                            const row = {};
+                            headers.forEach((header, index) => {
+                                row[header] = values[index] || '';
+                            });
+                            dataToValidate.push(row);
+                        }
+                    }
+                    console.log('Successfully loaded clean data:', dataToValidate.length, 'samples');
+                } catch (error) {
+                    console.error('Error parsing clean CSV:', error);
+                }
+            }
+            console.log('Validating data with', dataToValidate.length, 'samples');
+            console.log('Headers in processed data:', processedData.headers);
+            
+            // Check if we have the right sample column name
+            const sampleColumnName = processedData.headers.find(h => h && h.toLowerCase().trim() === 'sample');
+            console.log('Sample column name found:', sampleColumnName);
+            
+            // 1. Check for standard samples in data
+            const standardSamples = dataToValidate.filter(row => {
+                // Try different ways to get the sample name
+                const sampleName = String(row.Sample || row.sample || row[sampleColumnName] || '');
+                return sampleName.includes('Standard') || sampleName.includes('standard') || 
+                       sampleName.includes('Std') || sampleName.includes('std') ||
+                       sampleName.includes('Cal') || sampleName.includes('cal');
+            });
+            
+            console.log('Standards found during validation:', standardSamples.map(s => s.Sample || s.sample));
+            
+            if (standardSamples.length > 0) {
+                validationHTML += `✅ <strong>Standards Found:</strong> ${standardSamples.length} standard samples detected (${standardSamples.slice(0, 5).map(s => s.Sample || s.sample).join(', ')}${standardSamples.length > 5 ? '...' : ''})<br>`;
+            } else {
+                validationHTML += `❌ <strong>No Standards Found:</strong> No standard samples detected in data. Analysis will fail.<br>`;
+                allValid = false;
+            }
+            
+            // 2. Check standards file
+            const standardsFile = document.getElementById('standardsFile').files[0];
+            if (standardsFile) {
+                try {
+                    const standardsData = await loadStandardsFile(standardsFile);
+                    const matchingStandards = standardSamples.filter(sample => {
+                        const sampleName = sample.Sample || sample.sample;
+                        return standardsData[sampleName] !== undefined;
+                    });
+                    
+                    if (matchingStandards.length > 0) {
+                        validationHTML += `✅ <strong>Standards File:</strong> Loaded successfully. ${matchingStandards.length} standards will get concentrations from file.<br>`;
+                    } else {
+                        validationHTML += `⚠️ <strong>Standards File:</strong> Loaded but no sample names match. Auto-concentration will be used instead.<br>`;
+                    }
+                } catch (error) {
+                    validationHTML += `❌ <strong>Standards File:</strong> Error loading file - ${error.message}<br>`;
+                    allValid = false;
+                }
+            } else {
+                if (standardSamples.length > 0) {
+                    validationHTML += `⚠️ <strong>Standards File:</strong> Not provided. Auto-concentrations will be assigned based on sample names.<br>`;
+                } else {
+                    // This was too strict, if auto-detection works without a file, it's not an error.
+                    // validationHTML += `❌ <strong>Standards File:</strong> Required since no standard samples detected in data.<br>`;
+                    // allValid = false;
+                     validationHTML += `ℹ️ <strong>Standards File:</strong> Not provided. Concentrations will be auto-detected if possible.<br>`;
+                }
+            }
+            
+            // 3. Check background sample
+            const bgSample = document.getElementById('bgSample').value;
+            const backgroundFound = dataToValidate.some(row => {
+                const sampleName = String(row.Sample || row.sample || row[sampleColumnName] || '');
+                return sampleName === bgSample;
+            });
+            
+            console.log('Background search result:', backgroundFound, 'for sample:', bgSample);
+            
+            if (backgroundFound) {
+                validationHTML += `✅ <strong>Background Sample:</strong> "${bgSample}" found in data.<br>`;
+            } else {
+                validationHTML += `⚠️ <strong>Background Sample:</strong> "${bgSample}" not found in data. Background correction will be skipped (using raw MFI).<br>`;
+            }
+            
+            // 4. Check cutoff file
+            const cutoffFile = document.getElementById('cutoffFile').files[0];
+            if (cutoffFile) {
+                validationHTML += `✅ <strong>Cutoff File:</strong> Loaded successfully.<br>`;
+            } else {
+                validationHTML += `ℹ️ <strong>Cutoff File:</strong> Not provided. No cutoff flags will be generated.<br>`;
+            }
+            
+            // 5. Check dilution factor
+            const dilutionFactor = parseFloat(document.getElementById('dilutionFactor').value);
+            if (dilutionFactor > 0) {
+                validationHTML += `✅ <strong>Dilution Factor:</strong> ${dilutionFactor} (valid)<br>`;
+            } else {
+                validationHTML += `❌ <strong>Dilution Factor:</strong> Must be greater than 0.<br>`;
+                allValid = false;
+            }
+            
+            // 6. Check analytes
+            if (analytes && analytes.length > 0) {
+                validationHTML += `✅ <strong>Analytes:</strong> ${analytes.length} analytes detected (${analytes.slice(0, 3).join(', ')}${analytes.length > 3 ? '...' : ''})<br>`;
+            } else {
+                validationHTML += `❌ <strong>Analytes:</strong> No analytes detected.<br>`;
+                allValid = false;
+            }
+            
+            // Summary
+            if (allValid) {
+                validationHTML += `<br><strong style="color: #28a745;">✅ All validations passed! Ready for analysis.</strong>`;
+                validationDiv.style.backgroundColor = '#d4edda';
+                validationDiv.style.borderColor = '#c3e6cb';
+            } else {
+                validationHTML += `<br><strong style="color: #dc3545;">❌ Some validations failed. Please fix issues before running analysis.</strong>`;
+                validationDiv.style.backgroundColor = '#f8d7da';
+                validationDiv.style.borderColor = '#f5c6cb';
+            }
+            
+            detailsDiv.innerHTML = validationHTML;
+        }
+
+        async function runAnalysis() {
+            const selectedAnalyte = document.getElementById('analyteSelect').value;
+            if (!selectedAnalyte) {
+                updateStatus('Please select an analyte', 'error');
+                return;
+            }
+            if (!processedData) {
+                updateStatus('Please preprocess a file first.', 'error');
+                return;
+            }
+
+            updateStatus('Running analysis...', 'info');
+            updateProgress(0);
+            
+            // Clear previous charts from global array
+            allCharts.length = 0;
+
+            try {
+                // Ensure Pyodide and packages are loaded before starting analysis loop
+                await loadPyodideAndPackages();
+                
+                // Load and merge standards file if provided (like Python script does)
+                let mergedData = null;
+                const standardsFile = document.getElementById('standardsFile').files[0];
+                if (standardsFile) {
+                    updateStatus('Loading and merging standards file...', 'info');
+                    const standardsData = await loadStandardsFile(standardsFile);
+                    console.log('Standards loaded:', standardsData);
+                    
+                    // Merge standards with processed data (like Python script line 283)
+                    mergedData = mergeStandardsWithData(processedData, standardsData);
+                    console.log('Data merged with standards:', mergedData);
+                } else {
+                    // Auto-detect standards and assign concentrations (like Python script lines 286-314)
+                    updateStatus('No standards file provided. Auto-detecting standard samples...', 'info');
+                    
+                    let dataForAnalysis = processedData;
+                    const outputFolder = document.getElementById('outputFolder').value;
+                    const cleanDataKey = `${outputFolder}_clean_data.csv`;
+                    
+                    if (generatedFiles && generatedFiles[cleanDataKey]) {
+                        console.log('Using clean data file for analysis instead of potentially stale processedData');
+                        try {
+                            const cleanCSV = generatedFiles[cleanDataKey];
+                            const lines = cleanCSV.split(/\r?\n/);
+                            function parseCSVLine(line) { /* ... (same as in preprocessFile) ... */ 
+                                const result = []; let current = ''; let inQuotes = false;
+                                for (let i = 0; i < line.length; i++) {
+                                    const char = line[i];
+                                    if (char === '"') { inQuotes = !inQuotes; } 
+                                    else if (char === ',' && !inQuotes) { result.push(current.trim()); current = ''; } 
+                                    else { current += char; }
+                                }
+                                result.push(current.trim()); return result;
+                            }
+                            const headers = parseCSVLine(lines[0]);
+                            const cleanData = [];
+                            for (let i = 1; i < lines.length; i++) {
+                                if (lines[i].trim()) {
+                                    const values = parseCSVLine(lines[i]);
+                                    const row = {};
+                                    headers.forEach((header, index) => { row[header] = values[index] || ''; });
+                                    cleanData.push(row);
+                                }
+                            }
+                            dataForAnalysis = { headers: headers, data: cleanData };
+                            console.log('Successfully loaded clean data for auto-standards analysis:', cleanData.length, 'samples');
+                        } catch (error) {
+                            console.error('Error parsing clean CSV for auto-standards analysis:', error);
+                        }
+                    }
+                    
+                    mergedData = autoDetectStandards(dataForAnalysis);
+                    console.log('Standards auto-detected:', mergedData);
+                }
+                
+                const analytesToProcess = selectedAnalyte === 'All' ? analytes : [selectedAnalyte];
+                
+                // Load cutoff file if provided (like Python script does)
+                let cutoffData = null;
+                const cutoffFile = document.getElementById('cutoffFile').files[0];
+                if (cutoffFile) {
+                    updateStatus('Loading cutoff file...', 'info');
+                    try {
+                        cutoffData = await loadCutoffFile(cutoffFile);
+                        console.log('Cutoff data loaded:', cutoffData);
+                    } catch (error) {
+                        console.error('Error loading cutoff file:', error);
+                        updateStatus('Warning: Failed to load cutoff file: ' + error.message, 'warning');
+                    }
+                }
+                
+                // Process each analyte
+                for (let i = 0; i < analytesToProcess.length; i++) {
+                    const analyte = analytesToProcess[i];
+                    updateStatus(`Processing ${analyte}... (${i + 1}/${analytesToProcess.length})`, 'info');
+                    updateProgress((i / analytesToProcess.length) * 90);
+                    
+                    // Perform analysis for this analyte using merged data
+                    const result = await analyzeAnalyte(analyte, mergedData, cutoffData); // analyzeAnalyte is now async
+                    analysisResults[analyte] = result;
+                }
+                
+                updateProgress(95);
+                
+                // Generate visualizations and files
+                await generateResults();
+                
+                updateProgress(100);
+                updateStatus('Analysis completed successfully!', 'success');
+                
+                // Show results section
+                document.getElementById('resultsSection').style.display = 'block';
+                document.getElementById('downloadSection').style.display = 'block';
+                
+                // Enable global axis controls
+                document.getElementById('globalXAxisToggle').disabled = false;
+                document.getElementById('globalYAxisToggle').disabled = false;
+                
+            } catch (error) {
+                updateStatus('Error during analysis: ' + error.message, 'error');
+                console.error('Analysis error:', error);
+            }
+        }
+
+        function filterLowStandards(standards, analyte, bgMean, bgStd) {
+            // Filter out low standards that are too close to background noise
+            // Uses balanced criteria: excludes standards in noise range but not overly stringent
+            
+            let filteredStandards = [...standards]; // Copy standards array
+            let firstValidIdx = 0;
+            let lowStdFiltered = false;
+            
+            // Sort standards by concentration to work from lowest to highest
+            const sortedStandards = [...standards].sort((a, b) => a.concentration - b.concentration);
+            
+            // Calculate threshold for minimum acceptable signal
+            // Use multiple criteria to determine if a standard is too close to background noise
+            const bgVariability = bgStd > 0 ? bgStd * 2 : 0; // 2 standard deviations of background
+            const minAbsoluteThreshold = 10; // Minimum 10 MFI (since background is already subtracted)
+            const threshold = Math.max(bgVariability, minAbsoluteThreshold);
+            
+            // Find the first standard that meets our criteria
+            for (let i = 0; i < sortedStandards.length; i++) {
+                const std = sortedStandards[i];
+                const correctedMfi = std.correctedMfi;
+                
+                // Balanced criteria for excluding low standards:
+                // 1. Must have positive signal after background subtraction
+                // 2. Must be above background noise threshold
+                const hasPositiveSignal = correctedMfi > 0;
+                const aboveNoiseThreshold = correctedMfi >= threshold;
+                
+                // 3. Check if this standard follows expected dose-response pattern
+                let followsPattern = true;
+                if (i >= 2) { // Need at least 3 points to check pattern
+                    // Check if the trend is generally increasing with concentration
+                    const prev2 = sortedStandards[i-2].correctedMfi;
+                    const prev1 = sortedStandards[i-1].correctedMfi;
+                    const current = correctedMfi;
+                    
+                    // Allow some flexibility - standard can be lower than previous if it's still above threshold
+                    // But if it's dramatically lower (>50% drop), it might not fit the curve
+                    if (current < prev1 * 0.5 && current < prev2 * 0.5) {
+                        followsPattern = false;
+                        console.log(`Standard ${i+1} for ${analyte} appears to deviate from dose-response pattern (MFI: ${current.toFixed(1)})`);
+                    }
+                }
+                
+                // Standard is valid if it meets all criteria
+                if (hasPositiveSignal && aboveNoiseThreshold && followsPattern) {
+                    firstValidIdx = i;
+                    break;
+                }
+            }
+            
+            // Only filter if we're excluding low standards that don't meet our criteria
+            if (firstValidIdx > 0) {
+                filteredStandards = sortedStandards.slice(firstValidIdx);
+                lowStdFiltered = true;
+                console.log(`Filtering low standards for ${analyte}: excluding first ${firstValidIdx} standards (threshold: ${threshold.toFixed(1)} MFI, includes pattern-based filtering)`);
+            } else {
+                // No filtering needed - use all standards in their original order
+                filteredStandards = standards;
+            }
+            
+            // Ensure we still have enough standards for curve fitting
+            if (filteredStandards.length < 4) {
+                console.log(`Warning: Low standard filtering for ${analyte} would leave too few standards. Using top half instead.`);
+                const halfway = Math.floor(standards.length / 2);
+                filteredStandards = standards.slice(halfway);
+                firstValidIdx = halfway;
+                lowStdFiltered = true;
+            }
+            
+            return {
+                filteredStandards: filteredStandards,
+                firstValidIdx: firstValidIdx,
+                lod: threshold, // Return the threshold used for filtering
+                lowStdFiltered: lowStdFiltered
+            };
+        }
+
+        async function analyzeAnalyte(analyte, mergedData, cutoffData = null) { // Made async
+            console.log(`Starting analysis for analyte: ${analyte}`);
+            
+            const bgSample = document.getElementById('bgSample').value;
+            const dilutionFactor = parseFloat(document.getElementById('dilutionFactor').value);
+            const detectHook = document.getElementById('detectHook').checked;
+            const filterLowStd = document.getElementById('filterLowStd').checked;
+            
+            const analyteData = mergedData.data.map(row => {
+                const sampleName = String(row.Sample || row.sample || '');
+                let concentration = null;
+                if (row.Concentration !== undefined && row.Concentration !== null && parseFloat(row.Concentration) > 0) {
+                    concentration = parseFloat(row.Concentration);
+                }
+                
+                return {
+                    sample: sampleName,
+                    location: row.Location || row.location || '',
+                    mfi: parseFloat(row[analyte]) || 0,
+                    concentration: concentration // This is expected_conc for standards
+                };
+            });
+            
+            console.log(`Found ${analyteData.length} samples for ${analyte}`);
+            
+            const standardsFound = analyteData.filter(row => row.concentration !== null && row.concentration > 0);
+             if (standardsFound.length === 0) {
+                const standardKeywords = ['standard', 'std', 'cal'];
+                const alternativeStandards = analyteData.filter(row => {
+                    const sampleName = String(row.sample || '').toLowerCase();
+                    return standardKeywords.some(keyword => sampleName.includes(keyword));
+                });
+                
+                let errorMsg = `No standards found for ${analyte}. `;
+                if (alternativeStandards.length > 0) {
+                    errorMsg += `Found samples like '${alternativeStandards[0].sample}' which might be standards, but they lack concentration values. `;
+                    errorMsg += `Ensure your standards CSV (if provided) matches these names exactly (case-sensitive) or that auto-detection (e.g., 'Standard1') is applicable.`;
+                } else {
+                    errorMsg += `No samples found with names containing 'Standard', 'Std', or 'Cal'. Check data and/or standards CSV.`;
+                }
+                throw new Error(errorMsg);
+            }
+            
+            // Background correction
+            const backgroundData = analyteData.filter(row => row.sample === bgSample);
+            let bgMean = 0;
+            let bgStd = 0;
+            
+            if (backgroundData.length > 0) {
+                bgMean = backgroundData.reduce((sum, row) => sum + row.mfi, 0) / backgroundData.length;
+                if (backgroundData.length > 1) {
+                    const variance = backgroundData.reduce((sum, row) => sum + Math.pow(row.mfi - bgMean, 2), 0) / (backgroundData.length - 1);
+                    bgStd = Math.sqrt(variance);
+                }
+            } else {
+                console.warn(`Background sample '${bgSample}' not found for ${analyte}. Using raw MFI (no background subtraction).`);
+            }
+            
+            analyteData.forEach(row => {
+                row.correctedMfi = row.mfi - bgMean;
+            });
+            
+            const standards = analyteData.filter(row => row.concentration !== null && row.concentration > 0);
+             if (standards.length < 4) { // SciPy needs at least 4 points for 4PL
+                const detectedSamples = analyteData.slice(0, 10).map(row => `${row.sample}: ${row.concentration || 'No conc'}`).join(', ');
+                throw new Error(`Not enough standards for ${analyte} to fit a 4PL curve. Found ${standards.length}, need at least 4. Sample preview: ${detectedSamples}. Check 'Concentration' column for standards.`);
+            }
+            
+            standards.sort((a, b) => a.concentration - b.concentration);
+            
+            let hookResult = null;
+            let hookDetected = false;
+            let hookConc = NaN;
+            let usableStandards = standards;
+            
+            if (detectHook && standards.length >= 4) {
+                hookResult = identifyHookEffect(standards, analyte, 'correctedMfi');
+                hookDetected = hookResult.hookPresent;
+                hookConc = hookResult.hookConc;
+                usableStandards = hookResult.hookPresent ? hookResult.sortedStandards.slice(0, hookResult.peakIdx + 1) : hookResult.sortedStandards;
+            } else {
+                 usableStandards = standards; // Use all if not detecting hook or too few standards
+            }
+            
+            let filteredStandards = usableStandards;
+            let firstValidIdx = 0;
+            let lod = bgMean + (3 * bgStd);
+            let lowStdFiltered = false;
+            
+            // Apply low standard filtering if enabled
+            if (filterLowStd && usableStandards.length >= 4) {
+                console.log(`Applying low standard filtering for ${analyte}`);
+                const filterResult = filterLowStandards(usableStandards, analyte, bgMean, bgStd);
+                filteredStandards = filterResult.filteredStandards;
+                firstValidIdx = filterResult.firstValidIdx;
+                lod = filterResult.lod;
+                lowStdFiltered = filterResult.lowStdFiltered;
+                
+                if (lowStdFiltered) {
+                    console.log(`Low standards filtered for ${analyte}. Using ${filteredStandards.length} out of ${usableStandards.length} standards.`);
+                }
+            } else {
+                // Use all usable standards (default behavior)
+                filteredStandards = usableStandards;
+            }
+             if (filteredStandards.length < 4) {
+                 throw new Error(`Not enough standards (${filteredStandards.length}) remain for ${analyte} after filtering for curve fitting. Minimum 4 required.`);
+             }
+            
+            const xData = filteredStandards.map(s => Math.log10(s.concentration));
+            const yData = filteredStandards.map(s => s.correctedMfi);
+            
+            // Fit 4PL curve using Pyodide/SciPy
+            const curveParams = await fit4PLCurve(xData, yData); // Await the async call
+            console.log(`4PL fit parameters for ${analyte} (SciPy):`, curveParams);
+            
+            // Calculate concentrations for all samples
+            analyteData.forEach(row => {
+                if (row.concentration === null) { // Not a standard
+                    row.calculatedConc = interpolateConcentration(row.correctedMfi, curveParams);
+                    row.finalConc = row.calculatedConc !== null ? row.calculatedConc * dilutionFactor : null;
+                } else { // It's a standard
+                    row.calculatedConc = row.concentration; // Expected concentration for standards
+                    row.finalConc = row.concentration; // Standards don't get dilution factor
+                }
+                
+                const minStdMfi = Math.min(...filteredStandards.map(s => s.correctedMfi));
+                const maxStdMfi = Math.max(...filteredStandards.map(s => s.correctedMfi));
+                
+                row.belowMinMfi = (row.correctedMfi < minStdMfi || row.correctedMfi < 0) ? 1 : 0;
+                row.aboveMaxMfi = row.correctedMfi > maxStdMfi ? 1 : 0;
+                
+                if (hookDetected && detectHook) {
+                    const hookPeakMfi = usableStandards[hookResult.peakIdx].correctedMfi;
+                    row.inHookZone = (row.correctedMfi > hookPeakMfi || 
+                                     (row.calculatedConc && row.calculatedConc > hookConc)) ? 1 : 0;
+                } else {
+                    row.inHookZone = 0;
+                }
+                
+                // Calculate cutoff flag if cutoff data is provided
+                if (cutoffData && cutoffData[analyte] !== undefined) {
+                    const cutoffValue = cutoffData[analyte];
+                    const isStandard = String(row.sample).toLowerCase().includes('standard');
+                    const isBackground = row.sample === bgSample;
+                    
+                    if (isStandard) {
+                        row.belowCutoff = null; // Standards get null for cutoff flag
+                    } else if (isBackground) {
+                        row.belowCutoff = 1; // Background samples are always below cutoff
+                    } else {
+                        // Regular samples: check if final concentration is below cutoff
+                        row.belowCutoff = (row.finalConc !== null && row.finalConc < cutoffValue) ? 1 : 0;
+                        
+                        // Samples with MFI below min standard should automatically be below cutoff
+                        if (row.belowMinMfi === 1) {
+                            row.belowCutoff = 1;
+                        }
+                    }
+                } else {
+                    row.belowCutoff = null; // No cutoff provided
+                }
+            });
+            
+            const efficiencyData = calculateEfficiency(standards, analyte, curveParams); // Use all original standards for efficiency reporting
+            
+            return {
+                analyte: analyte,
+                data: analyteData,
+                standards: filteredStandards, // Standards used in the fit
+                allStandards: standards, // All standards initially identified
+                usableStandards: usableStandards, // Standards after hook detection (if any)
+                curveParams: curveParams,
+                backgroundMean: bgMean,
+                backgroundStd: bgStd,
+                hookDetected: hookDetected,
+                hookConcentration: hookConc,
+                lowStandardsFiltered: lowStdFiltered,
+                firstValidIndex: firstValidIdx,
+                efficiencyData: efficiencyData,
+                lod: lod
+            };
+        }
+        
+        async function fit4PLCurve(xData, yData) { // Made async
+            if (!pyodideInstance) {
+                console.warn("Pyodide not loaded. Attempting to load now for curve fitting.");
+                await loadPyodideAndPackages(); // Ensure it's loaded
+                if (!pyodideInstance) { // Check again after attempt
+                    console.error("Pyodide failed to load. Curve fitting will use basic JS fallback (less accurate).");
+                    updateStatus("Pyodide/SciPy failed to load. Using JS fallback for fitting.", "error");
+                    // Fallback to a very simple estimation if Pyodide isn't available
+                    const A0_fallback = Math.max(...yData, 0);
+                    const D0_fallback = Math.min(...yData, 0);
+                    const C0_fallback = xData.reduce((a, b) => a + b, 0) / xData.length;
+                    return { A: A0_fallback, B: 1.0, C: C0_fallback, D: D0_fallback };
+                }
+            }
+             if (xData.length < 4) {
+                console.error("Not enough data points for 4PL fit (minimum 4). Using basic estimation.");
+                updateStatus("Too few standards for robust 4PL fit. Results may be inaccurate.", "error");
+                const A0_fallback = Math.max(...yData, 0);
+                const D0_fallback = Math.min(...yData, 0);
+                const C0_fallback = xData.reduce((a, b) => a + b, 0) / xData.length;
+                return { A: A0_fallback, B: 1.0, C: C0_fallback, D: D0_fallback };
+            }
+
+
+            // Pass data to Pyodide global_ns
+            pyodideInstance.globals.set('x_data_js', xData);
+            pyodideInstance.globals.set('y_data_js', yData);
+
+            const pythonCode = `
+import numpy as np
+from scipy.optimize import curve_fit
+import js # To access console.log from Python
+
+def four_pl_py(x, A, B, C, D):
+    return D + (A - D) / (1 + 10**((C - x) * B))
+
+x_data_py = np.array(x_data_js)
+y_data_py = np.array(y_data_js)
+
+# Initial guesses
+y_data_py_finite = y_data_py[np.isfinite(y_data_py)]
+x_data_py_finite = x_data_py[np.isfinite(x_data_py)]
+
+if len(y_data_py_finite) == 0:
+    A0_py, D0_py = 1.0, 0.0
+else:
+    A0_py = np.max(y_data_py_finite) if len(y_data_py_finite) > 0 else 1.0
+    D0_py = np.min(y_data_py_finite) if len(y_data_py_finite) > 0 else 0.0
+
+if len(x_data_py_finite) == 0:
+    C0_py = 0.0
+else:
+    C0_py = np.median(x_data_py_finite)
+B0_py = 1.0 
+
+# Ensure A0_py is greater than D0_py for initial guess stability
+if D0_py >= A0_py:
+    if A0_py == D0_py : # if they are equal
+        D0_py = A0_py - 0.1 if A0_py > 0 else -0.1
+        A0_py = D0_py + 0.2 if D0_py > -0.1 else A0_py + 0.1 # ensure A0 is slightly larger
+    else: # D0_py > A0_py, swap them
+        A0_py, D0_py = D0_py, A0_py
+
+
+p0_py = [A0_py, B0_py, C0_py, D0_py]
+
+# Parameter bounds
+min_x_py = np.min(x_data_py_finite) if len(x_data_py_finite) > 0 else -10.0
+max_x_py = np.max(x_data_py_finite) if len(x_data_py_finite) > 0 else 10.0
+
+# Define bounds carefully
+# A (top) must be > D (bottom)
+lower_A = D0_py 
+upper_D = A0_py 
+
+lower_bounds_py = [
+    lower_A,    # A
+    0.01,       # B (Hill slope) > 0
+    min_x_py,   # C (inflection)
+    -np.inf,    # D (bottom asymptote can be anything theoretically less than A)
+]
+upper_bounds_py = [
+    np.inf,     # A 
+    10.0,       # B
+    max_x_py,   # C
+    upper_D,    # D must be < A
+]
+
+# Clip initial parameters to be within bounds, adjust bounds if p0 is outside
+for i in range(4):
+    if p0_py[i] < lower_bounds_py[i]:
+        p0_py[i] = lower_bounds_py[i]
+    if p0_py[i] > upper_bounds_py[i]:
+        p0_py[i] = upper_bounds_py[i]
+
+# Ensure A_lower < A_upper and D_lower < D_upper, and A_lower > D_upper etc.
+if lower_bounds_py[0] >= upper_bounds_py[0]: # A_lower >= A_upper
+    upper_bounds_py[0] = lower_bounds_py[0] + abs(lower_bounds_py[0] * 0.1) + 0.1 
+if lower_bounds_py[3] >= upper_bounds_py[3]: # D_lower >= D_upper
+    lower_bounds_py[3] = upper_bounds_py[3] - abs(upper_bounds_py[3] * 0.1) - 0.1
+
+if lower_bounds_py[0] <= lower_bounds_py[3]: # A_lower <= D_lower
+    lower_bounds_py[3] = lower_bounds_py[0] - abs(lower_bounds_py[0]*0.1) -0.1 # make D_lower smaller
+
+if upper_bounds_py[0] <= upper_bounds_py[3]: # A_upper <= D_upper
+    upper_bounds_py[0] = upper_bounds_py[3] + abs(upper_bounds_py[3]*0.1) + 0.1 # make A_upper larger
+
+
+# Final check on p0 relative to bounds after adjustments
+p0_py[0] = np.clip(p0_py[0], lower_bounds_py[0], upper_bounds_py[0]) # A
+p0_py[3] = np.clip(p0_py[3], lower_bounds_py[3], upper_bounds_py[3]) # D
+
+
+popt_py = None
+try:
+    if len(x_data_py) < 4:
+        js.console.error("Python: Not enough data points for 4PL fit (minimum 4).")
+        popt_py = p0_py # Return initial guess as fallback
+    else:
+        popt_py, pcov = curve_fit(
+            four_pl_py, x_data_py, y_data_py, p0=p0_py,
+            bounds=(lower_bounds_py, upper_bounds_py),
+            method='trf', # Trust Region Reflective, good for bounds
+            maxfev=20000
+        )
+except RuntimeError as e:
+    js.console.error(f"Python curve_fit RuntimeError: {e}. Params: p0={p0_py}, bounds=({lower_bounds_py}, {upper_bounds_py})")
+    popt_py = p0_py # Fallback to initial guess
+except ValueError as e:
+    js.console.error(f"Python curve_fit ValueError: {e}. Params: p0={p0_py}, bounds=({lower_bounds_py}, {upper_bounds_py})")
+    popt_py = p0_py # Fallback to initial guess
+
+if popt_py is not None:
+    popt_list_py = popt_py.tolist() if hasattr(popt_py, 'tolist') else list(popt_py)
+else: # Should not happen if fallback is used
+    popt_list_py = p0_py 
+
+popt_list_py # This is returned to JavaScript
+            `;
+
+            try {
+                updateStatus('Fitting 4PL curve using SciPy...', 'info');
+                let popt_proxy = await pyodideInstance.runPythonAsync(pythonCode);
+                let popt_js = popt_proxy.toJs ? popt_proxy.toJs() : popt_proxy; // Convert PyProxy to JS array
+
+                if (!popt_js || popt_js.length !== 4 || popt_js.some(val => typeof val !== 'number' || isNaN(val))) {
+                     console.error('SciPy curve_fit failed or returned invalid/NaN parameters. popt_js:', popt_js);
+                     updateStatus('SciPy curve_fit failed to converge or returned invalid values. Using initial estimates.', 'error');
+                     return { A: yData.length > 0 ? Math.max(...yData) : 1, B: 1.0, C: xData.length > 0 ? xData.reduce((a, b) => a + b, 0) / xData.length : 0, D: yData.length > 0 ? Math.min(...yData) : 0 }; // Fallback
+                }
+                updateStatus('4PL curve fitted successfully with SciPy.', 'success');
+                return { A: popt_js[0], B: popt_js[1], C: popt_js[2], D: popt_js[3] };
+            } catch (error) {
+                console.error("Error during Pyodide execution for curve fitting: ", error);
+                updateStatus(`Error fitting curve with SciPy: ${error}. Using JS fallback.`, 'error');
+                const A0_fb = Math.max(...yData, 0); const D0_fb = Math.min(...yData, 0);
+                const C0_fb = xData.reduce((a,b) => a+b,0)/xData.length;
+                return { A: A0_fb, B: 1.0, C: C0_fb, D: D0_fb }; // Basic fallback
+            }
+        }
+        
+        function interpolateConcentration(mfi, params) {
+            const { A, B, C, D } = params;
+             // Check if params are valid numbers
+            if ([A, B, C, D].some(p => typeof p !== 'number' || isNaN(p))) {
+                console.warn("Invalid parameters for interpolation:", params);
+                return null;
+            }
+            
+            // Invert the 4PL equation to get concentration from MFI
+            if (mfi <= D || mfi >= A) { // Strict inequality for mfi >= A if B is positive
+                 if (mfi <= D && D < A) return Math.pow(10, C - (1/B) * Math.log10((A-D)/(D + 1e-9 - D)-1)); // very low conc
+                 if (mfi >= A && A > D) return Math.pow(10, C - (1/B) * Math.log10((A-D)/(A - 1e-9 - D)-1)); // very high conc
+                return null; 
+            }
+            
+            const ratio = (A - D) / (mfi - D) - 1;
+            if (ratio <= 0) { // This can happen if mfi is very close to A or D
+                // If mfi is slightly above D, ratio is large, log10(ratio) is large, C - large_val * (1/B) = very negative logConc
+                // If mfi is slightly below A, ratio is small positive, log10(ratio) is very negative, C - very_neg_val * (1/B) = very positive logConc
+                // This condition (ratio <= 0) suggests mfi is outside the D to A range, or exactly D or A.
+                // It might indicate an issue if mfi was already checked to be within (D, A).
+                // Let's assume if ratio is very small (mfi close to A), conc is high. If ratio is very large (mfi close to D), conc is low.
+                if (mfi > D && mfi < A) { // Should not happen if logic is correct
+                     console.warn(`Interpolation issue: ratio is ${ratio} for MFI ${mfi} with params A:${A}, D:${D}`);
+                }
+                return null;
+            }
+            
+            const logConc = C - (1 / B) * Math.log10(ratio);
+            if (isNaN(logConc) || !isFinite(logConc)) return null;
+
+            return Math.pow(10, logConc);
+        }
+
+        function calculateEfficiency(standards, analyte, curveParams) {
+            // Calculate efficiency for each standard - matches Python logic from lines 404-417
+            // First calculate interpolated concentrations for all standards
+            const standardsWithConc = standards.map(std => {
+                const interpolatedConc = interpolateConcentration(std.correctedMfi, curveParams);
+                return {
+                    ...std,
+                    interpolatedConc: interpolatedConc
+                };
+            });
+            
+            // Calculate efficiency as (interpolated concentration / expected concentration) * 100
+            // Group by expected concentration and calculate mean efficiency for each dilution level
+            const efficiencyMap = new Map();
+            
+            standardsWithConc.forEach(std => {
+                if (std.interpolatedConc !== null && std.concentration > 0) {
+                    const efficiency = (std.interpolatedConc / std.concentration) * 100;
+                    
+                    if (!efficiencyMap.has(std.concentration)) {
+                        efficiencyMap.set(std.concentration, []);
+                    }
+                    efficiencyMap.get(std.concentration).push(efficiency);
+                } else {
+                     // Could not interpolate or no expected concentration
+                     if (!efficiencyMap.has(std.concentration)) {
+                        efficiencyMap.set(std.concentration, []); // Store empty if cannot calculate
+                    }
+                }
+            });
+            
+            // Calculate mean efficiency for each concentration level
+            const efficiencyData = [];
+            efficiencyMap.forEach((efficiencies, concentration) => {
+                if (efficiencies.length > 0) {
+                    const meanEfficiency = efficiencies.reduce((sum, eff) => sum + eff, 0) / efficiencies.length;
+                    efficiencyData.push({
+                        concentration: concentration,
+                        efficiency: meanEfficiency
+                    });
+                } else {
+                     efficiencyData.push({ // Push NaN or some indicator if no valid efficiencies
+                        concentration: concentration,
+                        efficiency: NaN 
+                    });
+                }
+            });
+            
+            // Sort by concentration
+            return efficiencyData.sort((a, b) => a.concentration - b.concentration);
+        }
+        
+        function invertLogFourPl(y, A, B, C, D) { // Not directly used by SciPy fit, but used by JS efficiency calc if needed
+            // Invert 4PL to compute log10 concentration from MFI - matches Python logic from lines 20-26
+            if (y <= D || y >= A) { // if y is outside the asymptotes
+                return NaN; // Outside valid range
+            }
+            
+            const ratio = (A - D) / (y - D) - 1;
+            if (ratio <= 0) { // if y equals A, or y is outside (D,A) range in a way that makes ratio non-positive
+                return NaN;
+            }
+            
+            const logx = C - (1.0 / B) * Math.log10(ratio);
+            return logx;
+        }
+
+        async function generateResults() { // Made async
+            // Clear previous results
+            document.getElementById('graphsContainer').innerHTML = '';
+            document.getElementById('dataTablesContainer').innerHTML = '';
+            document.getElementById('summaryContainer').innerHTML = '';
+            // Don't reset generatedFiles here if preprocessing files are to be kept for download all
+            // generatedFiles = {}; // This was here, moved a more specific reset if needed for analysis results only
+
+            const outputFolder = document.getElementById('outputFolder').value;
+            // Clear only analysis-specific files from generatedFiles if needed, or manage by prefix
+            Object.keys(generatedFiles).forEach(key => {
+                if (!key.startsWith(`${outputFolder}_clean_data.csv`) && !key.startsWith(`${outputFolder}_leftover_data.csv`)) {
+                    delete generatedFiles[key];
+                }
+            });
+
+
+            // Generate graphs for each analyte
+            for (const [analyte, results] of Object.entries(analysisResults)) {
+                await generateAnalyteGraphs(analyte, results); // Made async
+                generateAnalyteDataTables(analyte, results);
+            }
+            
+            // Generate summary
+            generateSummary();
+            
+            // Generate downloadable files
+            generateDownloadableFiles();
+        }
+
+        async function generateAnalyteGraphs(analyte, results) { // Made async
+            const container = document.getElementById('graphsContainer');
+            
+            // Create graph container
+            const graphDiv = document.createElement('div');
+            graphDiv.className = 'graph-container';
+            graphDiv.innerHTML = `<h3>${analyte} Standard Curve Analysis</h3>`;
+            
+            // Create canvas container with fixed dimensions
+            const canvasContainer = document.createElement('div');
+            canvasContainer.className = 'chart-container';
+            
+            const canvas = document.createElement('canvas');
+            canvas.id = `chart-${analyte}`;
+            canvasContainer.appendChild(canvas);
+            graphDiv.appendChild(canvasContainer);
+            container.appendChild(graphDiv);
+            
+            // Generate standard curve chart
+            const ctx = canvas.getContext('2d');
+            
+            console.log(`Generating graph for ${analyte}:`, results);
+            
+            // Prepare data for chart - show different categories of standards
+            const allStandardData = results.allStandards.map(std => ({
+                x: std.concentration,
+                y: std.correctedMfi
+            }));
+            
+            const usedStandardData = results.standards.map(std => ({ // Standards actually used in the fit
+                x: std.concentration,
+                y: std.correctedMfi
+            }));
+            
+            // Identify excluded standards for visualization
+            const excludedHookData = [];
+            const excludedLowData = [];
+            
+            // Collect all concentrations used in the fit
+            const fitConcs = new Set(results.standards.map(s => s.concentration));
+
+            if (results.hookDetected) {
+                // Standards that were part of "usableStandards" (after hook detection) but NOT in "filteredStandards" (final fit)
+                // OR standards that were in "allStandards" but not in "usableStandards" due to hook
+                results.allStandards.forEach(std => {
+                    if (results.usableStandards.includes(std) && !fitConcs.has(std.concentration)) {
+                        // This case might be complex if usableStandards were further filtered by low signal
+                    }
+                    // More simply: if hook was detected, any standard in allStandards with conc > hookConc
+                    // AND was not part of the final fit set (results.standards)
+                    if (std.concentration > results.hookConcentration && !fitConcs.has(std.concentration)) {
+                         excludedHookData.push({ x: std.concentration, y: std.correctedMfi });
+                    }
+                });
+            }
+            
+            if (results.lowStandardsFiltered) {
+                // Standards that were part of "usableStandards" but excluded by low filter
+                results.usableStandards.forEach(std => {
+                    if (!fitConcs.has(std.concentration) && !excludedHookData.some(ex => ex.x === std.concentration)) { // Not already marked as hook-excluded
+                        excludedLowData.push({ x: std.concentration, y: std.correctedMfi });
+                    }
+                });
+            }
+            
+            // Generate fitted curve points - match Python logic for curve range (lines 524-538)
+            const curvePoints = [];
+            if (results.standards.length > 0 && results.curveParams && Object.values(results.curveParams).every(p => isFinite(p))) {
+                let xMinLog, xMaxLog;
+                
+                const fitStandardConcs = results.standards.map(s => s.concentration).filter(c => c > 0);
+                if (fitStandardConcs.length === 0) {
+                     console.warn("No valid positive concentrations in standards used for fit. Cannot generate curve points.");
+                } else {
+                    const minFitConc = Math.min(...fitStandardConcs);
+                    const maxFitConc = Math.max(...fitStandardConcs);
+
+                    if (results.hookDetected && isFinite(results.hookConcentration) && results.hookConcentration > 0) {
+                        xMinLog = Math.log10(minFitConc);
+                        xMaxLog = Math.log10(Math.min(maxFitConc, results.hookConcentration)); // Plot up to hook or max fitted std
+                    } else {
+                        xMinLog = Math.log10(minFitConc);
+                        xMaxLog = Math.log10(maxFitConc);
+                    }
+                    
+                    // Generate curve points with finer resolution for smooth curve
+                    if (isFinite(xMinLog) && isFinite(xMaxLog) && xMinLog <= xMaxLog) {
+                        for (let i = 0; i <= 200; i++) {
+                            const logConc = xMinLog + (i / 200) * (xMaxLog - xMinLog);
+                            const conc = Math.pow(10, logConc);
+                            const mfi = fourPL(logConc, results.curveParams); // JS fourPL
+                            if (isFinite(mfi)) { // Only add valid points
+                                curvePoints.push({ x: conc, y: mfi });
+                            }
+                        }
+                    } else {
+                         console.warn(`Cannot generate curve points for ${analyte} due to invalid xMinLog/xMaxLog. Min/Max fit conc: ${minFitConc}/${maxFitConc}, HookConc: ${results.hookConcentration}`);
+                    }
+                }
+            } else {
+                 console.warn(`Not generating curve for ${analyte} due to insufficient standards or invalid curve params.`);
+            }
+            
+            
+            // Build datasets dynamically based on what exclusions occurred
+            const datasets = [];
+            
+            // Standards used in fit (always shown)
+            datasets.push({
+                label: 'Standards (Used in Fit)',
+                data: usedStandardData,
+                backgroundColor: 'rgba(102, 126, 234, 0.8)', // Blue
+                borderColor: 'rgba(102, 126, 234, 1)',
+                pointRadius: 8
+            });
+            
+            // Standards excluded due to hook effect
+            if (excludedHookData.length > 0) {
+                datasets.push({
+                    label: 'Standards (Excluded - Hook Effect)',
+                    data: excludedHookData,
+                    backgroundColor: 'rgba(128, 128, 128, 0.6)', // Grey
+                    borderColor: 'rgba(100, 100, 100, 1)',
+                    pointRadius: 6,
+                    pointStyle: 'crossRot' // Changed style
+                });
+            }
+            
+            // Standards excluded due to low signal
+            if (excludedLowData.length > 0) {
+                datasets.push({
+                    label: 'Standards (Excluded - Low Signal)',
+                    data: excludedLowData,
+                    backgroundColor: 'rgba(255, 165, 0, 0.6)', // Orange
+                    borderColor: 'rgba(255, 140, 0, 1)',
+                    pointRadius: 6,
+                    pointStyle: 'triangle' // Changed style
+                });
+            }
+            
+            // Other standards (not used in fit, not explicitly excluded by hook/low)
+            const displayedConcs = new Set([
+                ...usedStandardData.map(d => d.x),
+                ...excludedHookData.map(d => d.x),
+                ...excludedLowData.map(d => d.x)
+            ]);
+            const otherStandardData = allStandardData.filter(d => !displayedConcs.has(d.x));
+            if (otherStandardData.length > 0) {
+                datasets.push({
+                    label: 'Standards (Other/Not in Fit)',
+                    data: otherStandardData,
+                    backgroundColor: 'rgba(200, 200, 200, 0.4)', // Lighter Grey
+                    borderColor: 'rgba(150, 150, 150, 1)',
+                    pointRadius: 5,
+                    pointStyle: 'rect'
+                });
+            }
+            
+            // Fitted curve
+            if (curvePoints.length > 0) {
+                datasets.push({
+                    label: '4PL Fit (SciPy)',
+                    data: curvePoints,
+                    type: 'line',
+                    borderColor: 'rgba(255, 99, 132, 1)', // Red
+                    backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                    pointRadius: 0,
+                    fill: false,
+                    tension: 0.1 // Slight tension for smoothness
+                });
+            }
+
+            const chart = new Chart(ctx, {
+                type: 'scatter',
+                data: {
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index', // Show tooltips for all points at the same x-value
+                        intersect: false
+                    },
+                    animation: {
+                        duration: 0 // Disable animations
+                    },
+                    scales: {
+                        x: {
+                            type: globalXAxisLog ? 'logarithmic' : 'linear',
+                            title: {
+                                display: true,
+                                text: globalXAxisLog ? 'Concentration (Log Scale)' : 'Concentration (Linear Scale)'
+                            },
+                            grid: {
+                                display: true
+                            }
+                        },
+                        y: {
+                            type: globalYAxisLog ? 'logarithmic' : 'linear',
+                            title: {
+                                display: true,
+                                text: globalYAxisLog ? 'Corrected MFI (Log Scale)' : 'Corrected MFI (Linear Scale)'
+                            },
+                            beginAtZero: false, // Don't force start at zero, especially if MFIs can be negative
+                            grid: {
+                                display: true
+                            }
+                        }
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: `Standard Curve for ${analyte}`
+                        },
+                        legend: {
+                            display: true,
+                            position: 'top'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    if (context.parsed.x !== null) {
+                                        label += `Conc: ${formatNumber(context.parsed.x)}`;
+                                    }
+                                    if (context.parsed.y !== null) {
+                                        label += `, MFI: ${formatNumber(context.parsed.y)}`;
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+            
+            // Add chart to global array for axis control
+            allCharts.push(chart);
+            
+            // Force chart to resize properly
+            setTimeout(() => {
+                if (chart && typeof chart.resize === 'function') chart.resize();
+            }, 100);
+            
+            // Add curve parameters text
+            const paramsDiv = document.createElement('div');
+            paramsDiv.style.marginTop = '10px';
+            paramsDiv.style.fontSize = '14px';
+            
+            let paramsHTML = `
+                <strong>4PL Parameters (SciPy Fit):</strong><br>
+                A (Top): ${formatNumber(results.curveParams.A)}<br>
+                B (Hill Slope): ${formatNumber(results.curveParams.B)}<br>
+                C (Inflection, log10EC50): ${formatNumber(results.curveParams.C)}<br>
+                D (Bottom): ${formatNumber(results.curveParams.D)}<br>
+                Background Mean: ${formatNumber(results.backgroundMean)}<br>
+                Standards Used in Fit: ${results.standards.length} / ${results.allStandards.length}
+            `;
+            
+            if (results.hookDetected) {
+                paramsHTML += `<br><strong style="color: #d63384;">Hook Effect Detected</strong><br>`;
+                paramsHTML += `Hook Concentration (approx.): ${formatNumber(results.hookConcentration)}<br>`;
+            }
+            
+            if (results.lowStandardsFiltered) {
+                paramsHTML += `<br><strong style="color: #fd7e14;">Low Standards Filtered Out</strong><br>`;
+                paramsHTML += `Filtering threshold: ${formatNumber(results.lod)} MFI<br>`;
+            }
+            
+            paramsDiv.innerHTML = paramsHTML;
+            graphDiv.appendChild(paramsDiv);
+        }
+
+        function fourPL(logX, params) { // JavaScript version of 4PL for plotting
+            const { A, B, C, D } = params;
+            if ([A,B,C,D].some(p => typeof p !== 'number' || isNaN(p))) return NaN;
+            return D + (A - D) / (1 + Math.pow(10, (C - logX) * B));
+        }
+
+        function identifyHookEffect(standards, analyte, correctedCol) {
+            // Get only rows with valid concentration and MFI values
+            const validStandards = standards.filter(std => {
+                const conc = parseFloat(std.concentration);
+                const mfi = parseFloat(std[correctedCol]); // Use correctedCol passed as argument
+                return conc > 0 && isFinite(conc) && mfi > -Infinity && isFinite(mfi); // Allow positive MFI
+            });
+            
+            // If not enough valid points, return immediately
+            if (validStandards.length < 3) {
+                return {
+                    sortedStandards: validStandards.sort((a, b) => a.concentration - b.concentration),
+                    peakIdx: -1,
+                    hookPresent: false,
+                    hookConc: NaN
+                };
+            }
+            
+            // Sort by concentration (ascending)
+            const sortedStandards = validStandards.sort((a, b) => a.concentration - b.concentration);
+            
+            // Find the peak MFI value
+            let peakIdx = 0;
+            let peakMfi = -Infinity;
+            
+            for (let i = 0; i < sortedStandards.length; i++) {
+                if (sortedStandards[i][correctedCol] > peakMfi) {
+                    peakMfi = sortedStandards[i][correctedCol];
+                    peakIdx = i;
+                }
+            }
+            
+            const peakConc = sortedStandards[peakIdx].concentration;
+            
+            // Check if the peak is not at the highest concentration (possible hook effect)
+            if (peakIdx < sortedStandards.length - 1) {
+                // Check if MFI drops significantly after the peak
+                // Consider MFI values for concentrations higher than the peak concentration
+                let subsequentMFI = sortedStandards.slice(peakIdx + 1).map(s => s[correctedCol]);
+                if (subsequentMFI.length > 0) {
+                    // Check if any subsequent MFI is significantly lower than peakMfi
+                    // A simple check: if the MFI at the highest concentration is < 90% of peakMFI
+                    const lastMfi = sortedStandards[sortedStandards.length - 1][correctedCol];
+                    if (lastMfi < peakMfi * 0.90 && peakMfi > 0) { // 10% drop relative to peak, ensure peak is positive
+                        console.log(`Hook effect detected for ${analyte} at concentration ${peakConc}. Peak MFI: ${peakMfi}, Last MFI: ${lastMfi}`);
+                        return {
+                            sortedStandards,
+                            peakIdx,
+                            hookPresent: true,
+                            hookConc: peakConc
+                        };
+                    }
+                }
+            }
+            
+            // No hook effect detected, use all standards
+            console.log(`No hook effect detected for ${analyte}`);
+            return {
+                sortedStandards,
+                peakIdx: sortedStandards.length - 1, // Peak is effectively the end or no drop seen
+                hookPresent: false,
+                hookConc: NaN
+            };
+        }
+
+
+        function generateAnalyteDataTables(analyte, results) {
+            const container = document.getElementById('dataTablesContainer');
+            
+            // Create table container
+            const tableDiv = document.createElement('div');
+            tableDiv.innerHTML = `<h3>${analyte} Results</h3>`;
+            
+            // Create table
+            const table = document.createElement('table');
+            table.style.width = '100%';
+            table.style.borderCollapse = 'collapse';
+            table.style.margin = '1rem 0';
+            
+            // Table header
+            const headerRow = table.insertRow();
+            ['Sample', 'Location', 'Raw MFI', 'Corrected MFI', 'Calc. Conc', 'Final Conc', 'Below Min MFI', 'Below Cutoff', 'Above Max MFI', 'In Hook Zone'].forEach(text => {
+                const th = document.createElement('th');
+                th.textContent = text;
+                th.style.border = '1px solid #ddd';
+                th.style.padding = '8px';
+                th.style.backgroundColor = '#f8f9fa';
+                headerRow.appendChild(th);
+            });
+            
+            // Table data - show all rows or a subset
+            const dataToShow = results.data; // Or results.data.slice(0, N) for subset
+            dataToShow.forEach(row => { 
+                const dataRow = table.insertRow();
+                [
+                    row.sample,
+                    row.location,
+                    formatMfiConc(row.mfi),
+                    formatMfiConc(row.correctedMfi),
+                    formatMfiConc(row.calculatedConc),
+                    formatMfiConc(row.finalConc),
+                    row.belowMinMfi,
+                    row.belowCutoff,
+                    row.aboveMaxMfi,
+                    row.inHookZone
+                ].forEach(text => {
+                    const td = document.createElement('td');
+                    td.textContent = text;
+                    td.style.border = '1px solid #ddd';
+                    td.style.padding = '8px';
+                    dataRow.appendChild(td);
+                });
+            });
+            
+            tableDiv.appendChild(table);
+            container.appendChild(tableDiv);
+        }
+
+        function generateSummary() {
+            const container = document.getElementById('summaryContainer');
+            
+            let summaryHTML = '<h3>Analysis Summary</h3>';
+            summaryHTML += `<p><strong>Analytes Processed:</strong> ${Object.keys(analysisResults).length}</p>`;
+            summaryHTML += `<p><strong>Total Samples in Processed Data:</strong> ${processedData.data.length}</p>`;
+            summaryHTML += `<p><strong>Plate Format:</strong> ${document.getElementById('plateFormat').value}</p>`;
+            summaryHTML += `<p><strong>Dilution Factor:</strong> ${document.getElementById('dilutionFactor').value}</p>`;
+            summaryHTML += `<p><strong>Hook Effect Detection:</strong> ${document.getElementById('detectHook').checked ? 'Enabled' : 'Disabled'}</p>`;
+            summaryHTML += `<p><strong>Low Standard Filtering:</strong> ${document.getElementById('filterLowStd').checked ? 'Enabled' : 'Disabled'}</p>`;
+            
+            summaryHTML += '<h4>Analyte Details:</h4>';
+            for (const [analyte, results] of Object.entries(analysisResults)) {
+                summaryHTML += `<div style="margin: 1rem 0; padding: 1rem; background: #f8f9fa; border-radius: 5px;">`;
+                summaryHTML += `<strong>${analyte}:</strong><br>`;
+                summaryHTML += `- Standards used in fit: ${results.standards.length} / ${results.allStandards.length}<br>`;
+                summaryHTML += `- Background mean: ${formatNumber(results.backgroundMean)}<br>`;
+                summaryHTML += `- Hook effect detected: ${results.hookDetected ? 'Yes' : 'No'}<br>`;
+                if (results.hookDetected && results.hookConcentration) {
+                    summaryHTML += `- Hook concentration (approx.): ${formatNumber(results.hookConcentration)}<br>`;
+                }
+                summaryHTML += `- Low standards filtered out: ${results.lowStandardsFiltered ? 'Yes' : 'No'}<br>`;
+                if (results.lowStandardsFiltered && results.lod) {
+                    summaryHTML += `- Filtering threshold used: ${formatNumber(results.lod)} MFI<br>`;
+                }
+                const validEfficiencies = results.efficiencyData.filter(e => isFinite(e.efficiency));
+                if (validEfficiencies.length > 0) {
+                    const avgEfficiency = validEfficiencies.reduce((sum, e) => sum + e.efficiency, 0) / validEfficiencies.length;
+                    summaryHTML += `- Average efficiency (of standards in fit): ${avgEfficiency.toFixed(1)}%`;
+                } else {
+                    summaryHTML += `- Average efficiency: N/A (no valid efficiencies calculated)`;
+                }
+                summaryHTML += `</div>`;
+            }
+            
+            container.innerHTML = summaryHTML;
+        }
+
+        function generateDownloadableFiles() {
+            const outputFolder = document.getElementById('outputFolder').value;
+            const downloadList = document.getElementById('downloadList');
+            // downloadList.innerHTML = ''; // Keep preprocessing files if already added
+
+            // Add analysis result files, ensuring not to duplicate preprocessing files if names collide
+            // Let's ensure preprocessing files are added first if they haven't been.
+            // This is handled by showPreprocessingDownloads now.
+
+            let analysisFilesHeaderAdded = downloadList.querySelector('.analysis-files-header');
+            if (!analysisFilesHeaderAdded && Object.keys(analysisResults).length > 0) {
+                 const separator = document.createElement('div');
+                separator.style.borderTop = '2px solid #ddd';
+                separator.style.margin = '1rem 0';
+                separator.innerHTML = '<strong class="analysis-files-header">Analysis Results:</strong>';
+                downloadList.appendChild(separator);
+            }
+            
+            // Generate CSV files for each analyte
+            for (const [analyte, results] of Object.entries(analysisResults)) {
+                // Results CSV
+                const resultsCSV = generateResultsCSV(results);
+                const resultsKey = `${outputFolder}_${analyte}_results.csv`; // Added outputFolder prefix
+                generatedFiles[resultsKey] = resultsCSV;
+                
+                // Efficiency CSV
+                const efficiencyCSV = generateEfficiencyCSV(results);
+                const efficiencyKey = `${outputFolder}_${analyte}_efficiency.csv`; // Added outputFolder prefix
+                generatedFiles[efficiencyKey] = efficiencyCSV;
+                
+                addDownloadItem(`${analyte} - Results`, resultsCSV, resultsKey);
+                addDownloadItem(`${analyte} - Efficiency`, efficiencyCSV, efficiencyKey);
+            }
+            
+            // Combined results
+            if (Object.keys(analysisResults).length > 0) {
+                const combinedCSV = generateCombinedResultsCSV();
+                const combinedKey = `${outputFolder}_combined_results.csv`; // Added outputFolder prefix
+                generatedFiles[combinedKey] = combinedCSV;
+                addDownloadItem('Combined Results', combinedCSV, combinedKey);
+                
+                // Efficiency data (long format) - matches Python version
+                const efficiencyLongCSV = generateEfficiencyLongCSV();
+                const efficiencyLongKey = `${outputFolder}_efficiency_data.csv`;
+                generatedFiles[efficiencyLongKey] = efficiencyLongCSV;
+                addDownloadItem('Efficiency Data (Long Format)', efficiencyLongCSV, efficiencyLongKey);
+                
+                // Efficiency data (pivot table) - matches Python version  
+                const efficiencyPivotCSV = generateEfficiencyPivotCSV();
+                const efficiencyPivotKey = `${outputFolder}_efficiency_pivot.csv`;
+                generatedFiles[efficiencyPivotKey] = efficiencyPivotCSV;
+                addDownloadItem('Efficiency Data (Pivot)', efficiencyPivotCSV, efficiencyPivotKey);
+                
+                // Hook effect data - matches Python version
+                const hookEffectCSV = generateHookEffectCSV();
+                const hookEffectKey = `${outputFolder}_hook_effect_data.csv`;
+                generatedFiles[hookEffectKey] = hookEffectCSV;
+                addDownloadItem('Hook Effect Data', hookEffectCSV, hookEffectKey);
+                
+                // IQC values export - matches Python version
+                const iqcCSV = generateIQCExportCSV();
+                if (iqcCSV) {
+                    const iqcKey = `${outputFolder}_${new Date().toISOString().slice(0,19).replace(/[:.]/g, '-')}_IQC_values.csv`;
+                    generatedFiles[iqcKey] = iqcCSV;
+                    addDownloadItem('IQC Values Export', iqcCSV, iqcKey);
+                }
+            
+                // Summary report
+                const summaryText = generateSummaryReport();
+                const summaryKey = `${outputFolder}_analysis_summary.txt`; // Added outputFolder prefix
+                generatedFiles[summaryKey] = summaryText;
+                addDownloadItem('Analysis Summary', summaryText, summaryKey);
+            }
+        }
+
+        function generateResultsCSV(results) {
+            const headers = ['Sample', 'Location', 'Raw_MFI', 'Corrected_MFI', 'Calculated_Conc', 'Final_Conc', 'Below_Min_MFI', 'Below_Cutoff', 'Above_Max_MFI', 'In_Hook_Zone'];
+            
+            let csv = headers.join(',') + '\n';
+            
+            results.data.forEach(row => {
+                const csvRow = [
+                    '"' + String(row.sample).replace(/"/g, '""') + '"', // Quote sample names
+                    '"' + String(row.location).replace(/"/g, '""') + '"',
+                    formatMfiConc(row.mfi),
+                    formatMfiConc(row.correctedMfi),
+                    formatMfiConc(row.calculatedConc),
+                    formatMfiConc(row.finalConc),
+                    row.belowMinMfi,
+                    row.belowCutoff,
+                    row.aboveMaxMfi,
+                    row.inHookZone
+                ].join(',');
+                csv += csvRow + '\n';
+            });
+            
+            return csv;
+        }
+
+        function generateEfficiencyCSV(results) {
+            const headers = ['Concentration', 'Efficiency'];
+            let csv = headers.join(',') + '\n';
+            
+            results.efficiencyData.forEach(row => {
+                csv += `${formatNumber(row.concentration)},${isFinite(row.efficiency) ? row.efficiency.toFixed(1) : ''}\n`;
+            });
+            
+            return csv;
+        }
+
+        function generateCombinedResultsCSV() {
+            if (Object.keys(analysisResults).length === 0) return "";
+
+            const firstAnalyteKey = Object.keys(analysisResults)[0];
+            const sampleDataRef = analysisResults[firstAnalyteKey].data; // Use data from the first analyte as reference for samples
+
+            const headers = ['Sample', 'Location'];
+            Object.keys(analysisResults).forEach(analyte => {
+                headers.push(`${analyte}_Final_Conc`, `${analyte}_Below_Min_MFI`, `${analyte}_Below_Cutoff`, `${analyte}_Above_Max_MFI`, `${analyte}_In_Hook_Zone`);
+            });
+            
+            let csv = headers.join(',') + '\n';
+            
+            sampleDataRef.forEach(refRow => {
+                const csvRow = [
+                    '"' + String(refRow.sample).replace(/"/g, '""') + '"', 
+                    '"' + String(refRow.location).replace(/"/g, '""') + '"'
+                ];
+                
+                Object.keys(analysisResults).forEach(analyte => {
+                    const analyteDataForSample = analysisResults[analyte].data.find(d => d.sample === refRow.sample && d.location === refRow.location);
+                    if (analyteDataForSample) {
+                        csvRow.push(formatMfiConc(analyteDataForSample.finalConc));
+                        csvRow.push(analyteDataForSample.belowMinMfi);
+                        csvRow.push(analyteDataForSample.belowCutoff);
+                        csvRow.push(analyteDataForSample.aboveMaxMfi);
+                        csvRow.push(analyteDataForSample.inHookZone);
+                    } else {
+                        csvRow.push('', '', '', '', ''); // Placeholder if somehow data is missing for this sample-analyte combo
+                    }
+                });
+                
+                csv += csvRow.join(',') + '\n';
+            });
+            
+            return csv;
+        }
+        
+        function generateEfficiencyLongCSV() {
+            // Generate efficiency data in long format (Analyte, Concentration, Efficiency columns)
+            const headers = ['Analyte', 'Concentration', 'Efficiency'];
+            let csv = headers.join(',') + '\n';
+            
+            Object.keys(analysisResults).forEach(analyte => {
+                const results = analysisResults[analyte];
+                results.efficiencyData.forEach(row => {
+                    csv += `${analyte},${formatMfiConc(row.concentration)},${isFinite(row.efficiency) ? row.efficiency.toFixed(1) : ''}\n`;
+                });
+            });
+            
+            return csv;
+        }
+        
+        function generateEfficiencyPivotCSV() {
+            // Generate efficiency data in pivot format (Concentration rows, Analyte columns)
+            const allConcentrations = new Set();
+            
+            // Collect all unique concentrations
+            Object.keys(analysisResults).forEach(analyte => {
+                const results = analysisResults[analyte];
+                results.efficiencyData.forEach(row => {
+                    allConcentrations.add(row.concentration);
+                });
+            });
+            
+            const sortedConcentrations = Array.from(allConcentrations).sort((a, b) => a - b);
+            const analytes = Object.keys(analysisResults);
+            
+            // Headers: Concentration, then each analyte
+            const headers = ['Concentration', ...analytes];
+            let csv = headers.join(',') + '\n';
+            
+            // Data rows
+            sortedConcentrations.forEach(concentration => {
+                const row = [formatMfiConc(concentration)];
+                
+                analytes.forEach(analyte => {
+                    const results = analysisResults[analyte];
+                    const efficiencyRow = results.efficiencyData.find(r => r.concentration === concentration);
+                    const efficiency = efficiencyRow && isFinite(efficiencyRow.efficiency) ? efficiencyRow.efficiency.toFixed(1) : '';
+                    row.push(efficiency);
+                });
+                
+                csv += row.join(',') + '\n';
+            });
+            
+            return csv;
+        }
+        
+        function generateHookEffectCSV() {
+            // Generate hook effect data (matches Python version format)
+            const headers = ['Analyte', 'Hook_Detected', 'Hook_Concentration', 'Standards_Excluded'];
+            let csv = headers.join(',') + '\n';
+            
+            Object.keys(analysisResults).forEach(analyte => {
+                const results = analysisResults[analyte];
+                const hookDetected = results.hookDetected ? 'True' : 'False';
+                const hookConc = results.hookDetected && results.hookConcentration ? formatMfiConc(results.hookConcentration) : '';
+                const standardsExcluded = results.hookDetected ? (results.allStandards.length - results.standards.length) : 0;
+                
+                csv += `${analyte},${hookDetected},${hookConc},${standardsExcluded}\n`;
+            });
+            
+            return csv;
+        }
+        
+        function generateIQCExportCSV() {
+            // Generate IQC (Internal Quality Control) values export for samples matching IQC pattern
+            // Returns CSV string if IQC samples found, null otherwise
+            
+            // Check if any analyte has IQC samples
+            const allAnalytes = Object.keys(analysisResults);
+            let hasIQCSamples = false;
+            const iqcSamples = new Map(); // Map to store unique IQC samples
+            
+            // Find all IQC samples across all analytes
+            allAnalytes.forEach(analyte => {
+                const results = analysisResults[analyte];
+                const analyteIQCSamples = results.data.filter(row => 
+                    row.sample && String(row.sample).startsWith('IQC')
+                );
+                
+                if (analyteIQCSamples.length > 0) {
+                    hasIQCSamples = true;
+                    analyteIQCSamples.forEach(sample => {
+                        const key = `${sample.sample}|${sample.location || ''}`;
+                        if (!iqcSamples.has(key)) {
+                            iqcSamples.set(key, {
+                                sample: sample.sample,
+                                location: sample.location || ''
+                            });
+                        }
+                    });
+                }
+            });
+            
+            if (!hasIQCSamples) {
+                console.log('No IQC samples found. Skipping IQC export.');
+                return null;
+            }
+            
+            // Prepare headers: Sample, Location, then 4 columns for each analyte
+            const headers = ['Sample', 'Location'];
+            allAnalytes.forEach(analyte => {
+                // Clean analyte name for column headers (replace spaces/hyphens with dots)
+                const analyteClean = analyte.replace(/[\s-]/g, '.');
+                headers.push(
+                    `${analyteClean}_Raw_MFI`,
+                    `${analyteClean}_Corrected_MFI`,
+                    `${analyteClean}_Concentration`,
+                    `${analyteClean}_Final_Concentration`
+                );
+            });
+            
+            let csv = headers.join(',') + '\n';
+            
+            // Generate data rows for each unique IQC sample
+            Array.from(iqcSamples.values()).forEach(iqcSample => {
+                const row = [
+                    `"${String(iqcSample.sample).replace(/"/g, '""')}"`,
+                    `"${String(iqcSample.location).replace(/"/g, '""')}"`
+                ];
+                
+                // For each analyte, find matching data and add the 4 columns
+                allAnalytes.forEach(analyte => {
+                    const results = analysisResults[analyte];
+                    const matchingData = results.data.find(dataRow => 
+                        dataRow.sample === iqcSample.sample && 
+                        (dataRow.location || '') === iqcSample.location
+                    );
+                    
+                    if (matchingData) {
+                        // Add the 4 data columns for this analyte
+                        row.push(formatMfiConc(matchingData.mfi));
+                        row.push(formatMfiConc(matchingData.correctedMfi));
+                        row.push(formatMfiConc(matchingData.calculatedConc));
+                        row.push(formatMfiConc(matchingData.finalConc));
+                    } else {
+                        // Add empty values if no matching data found
+                        row.push('', '', '', '');
+                    }
+                });
+                
+                csv += row.join(',') + '\n';
+            });
+            
+            return csv;
+        }
+
+        function generateSummaryReport() {
+             if (Object.keys(analysisResults).length === 0 && !processedData) return "No analysis performed or data processed.";
+
+            let report = 'Luminex Analysis Summary Report\n';
+            report += '=====================================\n\n';
+            report += `Analysis Date: ${new Date().toISOString()}\n`;
+            report += `Output Folder Name: ${document.getElementById('outputFolder').value}\n`;
+            report += `Plate Format: ${document.getElementById('plateFormat').value}\n`;
+            report += `Dilution Factor: ${document.getElementById('dilutionFactor').value}\n`;
+            report += `Hook Effect Detection: ${document.getElementById('detectHook').checked ? 'Enabled' : 'Disabled'}\n`;
+            report += `Low Standard Filtering: ${document.getElementById('filterLowStd').checked ? 'Enabled' : 'Disabled'}\n\n`;
+            
+            if (processedData && processedData.data) {
+                 report += `Total Samples in Processed Data: ${processedData.data.length}\n`;
+            }
+            report += `Analytes Processed: ${Object.keys(analysisResults).length}\n\n`;
+            
+            if (Object.keys(analysisResults).length > 0) {
+                report += 'Analyte Details:\n';
+                report += '----------------\n';
+            
+                for (const [analyte, results] of Object.entries(analysisResults)) {
+                    report += `\n${analyte}:\n`;
+                    report += `  Standards used in fit: ${results.standards.length} / ${results.allStandards.length}\n`;
+                    report += `  Background mean: ${formatNumber(results.backgroundMean)}\n`;
+                    report += `  Hook effect detected: ${results.hookDetected ? 'Yes' : 'No'}\n`;
+                     if (results.hookDetected && results.hookConcentration) {
+                        report += `  Hook concentration (approx.): ${formatNumber(results.hookConcentration)}\n`;
+                    }
+                    const validEfficiencies = results.efficiencyData.filter(e => isFinite(e.efficiency));
+                    if (validEfficiencies.length > 0) {
+                        const avgEfficiency = validEfficiencies.reduce((sum, e) => sum + e.efficiency, 0) / validEfficiencies.length;
+                        report += `  Average efficiency (of standards in fit): ${avgEfficiency.toFixed(1)}%\n`;
+                    } else {
+                        report += `  Average efficiency: N/A\n`;
+                    }
+                }
+            } else {
+                report += 'No analytes were successfully analyzed.\n';
+            }
+            
+            return report;
+        }
+
+        function addDownloadItem(displayName, content, filename = null) {
+            const downloadList = document.getElementById('downloadList');
+            const fileToDownload = filename || displayName.replace(/[^a-z0-9_.-]/gi, '_') + '.csv'; // Sanitize filename
+
+            // Avoid adding duplicate download items if function is called multiple times for same file
+            const existingItem = Array.from(downloadList.children).find(child => child.dataset.filename === fileToDownload);
+            if (existingItem) {
+                // Optionally update content if it might change, or just return
+                // For simplicity, we'll assume content is final when first added.
+                return;
+            }
+
+            const item = document.createElement('div');
+            item.className = 'download-item';
+            item.dataset.filename = fileToDownload; // Store filename for checking duplicates
+            
+            const nameSpan = document.createElement('span');
+            nameSpan.textContent = displayName;
+            
+            const downloadBtn = document.createElement('button');
+            downloadBtn.className = 'btn';
+            downloadBtn.textContent = 'Download';
+            downloadBtn.style.padding = '0.5rem 1rem';
+            
+            downloadBtn.onclick = () => downloadFile(fileToDownload, content);
+            
+            item.appendChild(nameSpan);
+            item.appendChild(downloadBtn);
+            downloadList.appendChild(item);
+        }
+
+        async function selectOutputDirectory() {
+            try {
+                if ('showDirectoryPicker' in window) {
+                    // Use File System Access API for modern browsers
+                    outputDirectoryHandle = await window.showDirectoryPicker();
+                    document.getElementById('selectedDirPath').textContent = 
+                        `Selected: ${outputDirectoryHandle.name}`;
+                    updateStatus('Output directory selected successfully', 'success');
+                } else {
+                    // Fallback for browsers without File System Access API
+                    updateStatus('Directory selection not supported by this browser. Files will download to your default browser download location.', 'info');
+                    document.getElementById('selectedDirPath').textContent = 
+                        'Directory selection not supported in this browser';
+                }
+            } catch (error) {
+                console.error('Error selecting directory:', error);
+                 if (error.name === 'AbortError') {
+                    updateStatus('Directory selection cancelled.', 'info');
+                } else {
+                    updateStatus('Directory selection failed. Files will download to default location.', 'info');
+                }
+            }
+        }
+
+        async function downloadFile(filename, content) {
+            try {
+                if (outputDirectoryHandle && typeof outputDirectoryHandle.getFileHandle === 'function') {
+                    // Save to selected directory using File System Access API
+                    const fileHandle = await outputDirectoryHandle.getFileHandle(filename, { create: true });
+                    const writable = await fileHandle.createWritable();
+                    await writable.write(content);
+                    await writable.close();
+                    updateStatus(`Saved ${filename} to selected directory: ${outputDirectoryHandle.name}`, 'success');
+                } else {
+                    // Fallback to regular download
+                    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+                    saveAs(blob, filename);
+                }
+            } catch (error) {
+                console.error(`Error saving file ${filename}:`, error);
+                updateStatus(`Error saving ${filename}. Falling back to standard download. Error: ${error.message}`, 'error');
+                // Fallback to regular download if directory save fails
+                try {
+                    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+                    saveAs(blob, filename);
+                } catch (fallbackError) {
+                     console.error(`Fallback download also failed for ${filename}:`, fallbackError);
+                     updateStatus(`Could not save ${filename} via directory or fallback. Error: ${fallbackError.message}`, 'error');
+                }
+            }
+        }
+
+        async function downloadAllFiles() {
+            const outputFolderForZip = document.getElementById('outputFolder').value || "LuminexResults";
+            
+            try {
+                if (outputDirectoryHandle && typeof outputDirectoryHandle.getDirectoryHandle === 'function') {
+                    // Create subdirectory and save all files
+                    updateStatus('Saving all files to selected directory...', 'info');
+                    
+                    let targetDir = outputDirectoryHandle;
+                    try {
+                        // Attempt to create/get a subdirectory named after the outputFolder value
+                        targetDir = await outputDirectoryHandle.getDirectoryHandle(outputFolderForZip, { create: true });
+                         updateStatus(`Saving files into subfolder: ${outputFolderForZip} within ${outputDirectoryHandle.name}`, 'info');
+                    } catch (error) {
+                        console.warn(`Could not create/access subdirectory '${outputFolderForZip}', saving to main selected directory '${outputDirectoryHandle.name}'. Error: ${error}`);
+                        updateStatus(`Saving files into main selected directory: ${outputDirectoryHandle.name}`, 'info');
+                        targetDir = outputDirectoryHandle; // Fallback to the root selected directory
+                    }
+                    
+                    let filesSavedCount = 0;
+                    for (const [filename, content] of Object.entries(generatedFiles)) {
+                        try {
+                            const fileHandle = await targetDir.getFileHandle(filename, { create: true });
+                            const writable = await fileHandle.createWritable();
+                            await writable.write(content);
+                            await writable.close();
+                            filesSavedCount++;
+                        } catch (indivFileError) {
+                            console.error(`Error saving individual file ${filename} to directory:`, indivFileError);
+                            updateStatus(`Error saving ${filename} to directory. It will be skipped.`, 'error');
+                        }
+                    }
+                     updateStatus(`${filesSavedCount} files saved to directory: ${targetDir.name}`, 'success');
+                } else {
+                    // Fallback to ZIP download
+                    updateStatus('Preparing ZIP file for download...', 'info');
+                    const zip = new JSZip();
+                    
+                    // Add all generated files to ZIP, potentially in a folder
+                    const zipFolder = zip.folder(outputFolderForZip);
+
+                    for (const [filename, content] of Object.entries(generatedFiles)) {
+                        zipFolder.file(filename, content);
+                    }
+                    
+                    // Generate and download ZIP
+                    const blob = await zip.generateAsync({ type: 'blob' });
+                    saveAs(blob, `${outputFolderForZip}.zip`);
+                    updateStatus('ZIP file downloaded successfully!', 'success');
+                }
+            } catch (error) {
+                console.error('Error downloading/saving all files:', error);
+                updateStatus('Error saving all files: ' + error.message, 'error');
+            }
+        }
+
+        function showPreprocessingDownloads() {
+            const downloadSection = document.getElementById('downloadSection');
+            const downloadList = document.getElementById('downloadList');
+            
+            // Clear only items not marked as preprocessing results to avoid duplicates
+            // Or simply ensure addDownloadItem handles duplicates
+            // downloadList.innerHTML = ''; // Re-evaluating this clear
+
+            const outputFolder = document.getElementById('outputFolder').value;
+            const cleanDataKey = `${outputFolder}_clean_data.csv`;
+            const leftoverDataKey = `${outputFolder}_leftover_data.csv`;
+            
+            // Add preprocessing files if they exist and aren't already listed
+            if (generatedFiles[cleanDataKey]) {
+                addDownloadItem('Clean Data (for downstream analysis)', generatedFiles[cleanDataKey], cleanDataKey);
+            }
+            if (generatedFiles[leftoverDataKey]) {
+                addDownloadItem('Leftover Data (excluded from analysis)', generatedFiles[leftoverDataKey], leftoverDataKey);
+            }
+            
+            // Add note about files if it's not there yet
+            if (!downloadList.querySelector('.preprocessing-note')) {
+                const noteDiv = document.createElement('div');
+                noteDiv.className = 'preprocessing-note'; // Add a class to check for existence
+                noteDiv.style.marginTop = '1rem';
+                noteDiv.style.padding = '0.75rem';
+                noteDiv.style.backgroundColor = '#e3f2fd';
+                noteDiv.style.borderRadius = '5px';
+                noteDiv.style.fontSize = '0.9rem';
+                noteDiv.innerHTML = `
+                    <strong>Note:</strong> The clean data file contains only the main analysis data and can be used for downstream processing. 
+                    The leftover data file contains metadata and other information that was excluded from the analysis.
+                `;
+                // Prepend note so it appears above other files if downloadList was already populated
+                if (downloadList.firstChild) {
+                    downloadList.insertBefore(noteDiv, downloadList.firstChild);
+                } else {
+                    downloadList.appendChild(noteDiv);
+                }
+            }
+            
+            // Show the download section
+            downloadSection.style.display = 'block';
+        }
+
+        function switchTab(tabName) {
+            // Update tab buttons
+            document.querySelectorAll('.tab-button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
+            
+            // Update tab content
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            document.getElementById(tabName).classList.add('active');
+        }
+    </script>
+</body>
+</html>
