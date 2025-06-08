@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Luminex Analysis Tool</title>
+    <title>Luminex data extractor and analysis tool</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Papa-Parse/5.4.1/papaparse.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
@@ -279,8 +279,8 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>Luminex Analysis Tool</h1>
-            <p>Web-based implementation of the Combined Analysis script (with SciPy curve fitting)</p>
+            <h1>Luminex data extractor and analysis tool</h1>
+            <p>Web-based implementation for extracting data from Luminex CSV file exports, with SciPy 4PL curve fitting for standards, detection of hook effect/low quality standards, interpolation, and assigning samples as above/below cut offs for higher dilution testing</p>
         </div>
 
         <div class="section">
@@ -301,7 +301,7 @@
             <div class="form-group">
                 <label for="outputDirectory">Output Directory:</label>
                 <button class="btn" id="selectOutputDir">Select Output Directory</button>
-                <p id="selectedDirPath" style="margin-top: 0.5rem; font-style: italic; color: #666;">No directory selected (files will download to default location)</p>
+                <p id="selectedDirPath" style="margin-top: 0.5rem; font-style: italic; color: #666;">No directory selected (files will download to default location (Downloads folder usually))</p>
             </div>
         </div>
 
