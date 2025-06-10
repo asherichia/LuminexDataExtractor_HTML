@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Button Test</title>
+</head>
+<body>
+    <input type="file" id="csvFile" accept=".csv">
+    <button id="preprocessBtn" disabled>Start Processing</button>
+    <div id="status"></div>
+    
+    <script>
+        console.log('Script loaded');
+        
+        function handleFileSelection(event) {
+            console.log('File selection triggered');
+            const file = event.target.files[0];
+            if (file) {
+                console.log('File selected:', file.name);
+                const btn = document.getElementById('preprocessBtn');
+                if (btn) {
+                    btn.disabled = false;
+                    console.log('Button enabled');
+                } else {
+                    console.log('Button not found');
+                }
+            }
+        }
+        
+        function initializeEventListeners() {
+            console.log('Initializing event listeners');
+            const csvFile = document.getElementById('csvFile');
+            if (csvFile) {
+                csvFile.addEventListener('change', handleFileSelection);
+                console.log('CSV file listener added');
+            } else {
+                console.log('CSV file input not found');
+            }
+        }
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM loaded');
+            initializeEventListeners();
+        });
+    </script>
+</body>
+</html>

@@ -337,12 +337,20 @@
             // Ensure graphs tab is active before export
             switchTab('graphs');
             
+            // Also ensure IQC tab gets activated for IQC charts
+            const hasIQCCharts = allCharts.some(chart => chart.type === 'iqc_individual');
+            if (hasIQCCharts) {
+                switchTab('iqc');
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                switchTab('graphs');
+            }
+            
             // Wait longer for charts to fully render and tab to be active
             await new Promise(resolve => setTimeout(resolve, 2000));
             
-            // Filter charts to only export standard curves (skip IQC charts)
+            // Filter charts to export only standard curves (not IQC charts)
             const chartsToExport = allCharts.filter(chart => chart.type === 'standard_curve');
-            console.log(`Filtered to ${chartsToExport.length} standard curve charts for export`);
+            console.log(`Filtered to ${chartsToExport.length} charts for export (standard curves only)`);
             
             // Process charts sequentially to ensure proper timing
             for (let i = 0; i < chartsToExport.length; i++) {
@@ -355,6 +363,15 @@
                 }
                 
                 try {
+                    // Switch to appropriate tab for this chart type
+                    if (chartInfo.type === 'iqc_individual') {
+                        switchTab('iqc');
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                    } else {
+                        switchTab('graphs');
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                    }
+                    
                     // Check canvas status
                     const canvasInDOM = document.contains(chartInfo.canvas);
                     if (!canvasInDOM) {
@@ -458,6 +475,11 @@
             if (csvFile) {
                 csvFile.addEventListener('change', handleFileSelection);
                 console.log('CSV file listener added');
+                
+                // Add additional reliability by resetting on click
+                csvFile.addEventListener('click', function() {
+                    this.value = ''; // Reset to ensure change event fires even for same file
+                });
             }
             
             const standardsFile = document.getElementById('standardsFile');
@@ -584,25 +606,15 @@
             
             // Use scientific notation for numbers >= 1,000,000 (6+ digits)
             if (absValue >= 1000000) {
-                return value.toExponential(2);
+                return value.toExponential(4);
             }
             
-            // For numbers less than 1000000, use whole numbers with commas
-            if (absValue >= 1) {
-                return Math.round(value).toLocaleString();
-            }
-            
-            // For small decimal numbers, use fixed decimal places
-            if (absValue >= 0.01) {
-                return value.toFixed(2);
-            }
-            
-            // For very small numbers, use scientific notation
-            return value.toExponential(2);
+            // For all other numbers, use 4 decimal places
+            return value.toFixed(4);
         }
         
         function formatMfiConc(value) {
-            // Special formatting for MFI and concentration values - always 3 decimal places
+            // Special formatting for MFI and concentration values - always 4 decimal places
             if (value === null || value === undefined || !isFinite(value)) {
                 return 'N/A';
             }
@@ -611,11 +623,11 @@
             
             // Use scientific notation for numbers >= 1,000,000 (6+ digits)
             if (absValue >= 1000000) {
-                return value.toExponential(3);
+                return value.toExponential(4);
             }
             
-            // For all other numbers, use 3 decimal places
-            return value.toFixed(3);
+            // For all other numbers, use 4 decimal places
+            return value.toFixed(4);
         }
 
         async function loadPyodideAndPackages() {
@@ -1786,7 +1798,7 @@
                     // But if it's dramatically lower (>50% drop), it might not fit the curve
                     if (current < prev1 * 0.5 && current < prev2 * 0.5) {
                         followsPattern = false;
-                        console.log(`Standard ${i+1} for ${analyte} appears to deviate from dose-response pattern (MFI: ${current.toFixed(1)})`);
+                        console.log(`Standard ${i+1} for ${analyte} appears to deviate from dose-response pattern (MFI: ${current.toFixed(4)})`);
                     }
                 }
                 
@@ -1801,7 +1813,7 @@
             if (firstValidIdx > 0) {
                 filteredStandards = sortedStandards.slice(firstValidIdx);
                 lowStdFiltered = true;
-                console.log(`Filtering low standards for ${analyte}: excluding first ${firstValidIdx} standards (threshold: ${threshold.toFixed(1)} MFI, includes pattern-based filtering)`);
+                console.log(`Filtering low standards for ${analyte}: excluding first ${firstValidIdx} standards (threshold: ${threshold.toFixed(4)} MFI, includes pattern-based filtering)`);
             } else {
                 // No filtering needed - use all standards in their original order
                 filteredStandards = standards;
@@ -2919,7 +2931,7 @@ popt_list_py # This is returned to JavaScript
                     
                     // CV
                     const cvCell = document.createElement('td');
-                    cvCell.textContent = stat.cv !== null ? `${stat.cv.toFixed(1)}%` : (stat.n > 1 ? 'N/A' : '-');
+                    cvCell.textContent = stat.cv !== null ? `${stat.cv.toFixed(4)}%` : (stat.n > 1 ? 'N/A' : '-');
                     cvCell.style.border = '1px solid #ddd';
                     cvCell.style.padding = '8px';
                     cvCell.style.textAlign = 'right';
@@ -2952,6 +2964,7 @@ popt_list_py # This is returned to JavaScript
                 analyteSection.appendChild(table);
                 
                 // Create separate charts for each IQC control level
+                console.log(`IQC Stats for ${analyte}:`, iqcStats.length, iqcStats);
                 if (iqcStats.length > 0) {
                     // Function to get color based on control number
                     function getControlColor(sampleName) {
@@ -2971,6 +2984,7 @@ popt_list_py # This is returned to JavaScript
                     
                     // Create individual chart for each IQC type
                     iqcStats.forEach((stat, statIndex) => {
+                        console.log(`Processing IQC chart ${statIndex + 1}/${iqcStats.length}: ${stat.sampleName}, mean: ${stat.mean}, samples: ${stat.samples.length}`);
                         if (stat.mean !== null) {
                             const chartDiv = document.createElement('div');
                             chartDiv.className = 'chart-container';
@@ -2983,7 +2997,8 @@ popt_list_py # This is returned to JavaScript
                             chartDiv.style.padding = '10px';
                             
                             const chartTitle = document.createElement('h5');
-                            chartTitle.textContent = `${stat.sampleName} - Individual Analysis`;
+                            const analysisType = stat.samples.filter(s => s.finalConc !== null && s.finalConc !== undefined && isFinite(s.finalConc)).length > 1 ? 'Individual Analysis' : 'Single Value';
+                            chartTitle.textContent = `${stat.sampleName} - ${analysisType}`;
                             chartTitle.style.textAlign = 'center';
                             chartTitle.style.marginBottom = '10px';
                             chartTitle.style.color = '#333';
@@ -2998,6 +3013,7 @@ popt_list_py # This is returned to JavaScript
                                 .map(s => s.finalConc)
                                 .filter(c => c !== null && c !== undefined && isFinite(c));
                             
+                            
                             if (validConcs.length > 0) {
                                 const datasets = [];
                                 
@@ -3006,6 +3022,9 @@ popt_list_py # This is returned to JavaScript
                                     x: 1 + (Math.random() - 0.5) * 0.1, // Slight horizontal jitter to prevent complete overlap
                                     y: conc
                                 }));
+                                
+                                console.log(`${stat.sampleName} scatter data for chart:`, scatterData);
+                                console.log(`${stat.sampleName} Y-axis range will be:`, Math.min(...validConcs), 'to', Math.max(...validConcs));
                                 
                                 datasets.push({
                                     label: `${stat.sampleName} Values`,
@@ -3019,25 +3038,24 @@ popt_list_py # This is returned to JavaScript
                                     type: 'scatter'
                                 });
                                 
-                                // Add mean line if multiple points
-                                if (validConcs.length > 1) {
-                                    datasets.push({
-                                        label: 'Mean',
-                                        data: [
-                                            {x: 0.3, y: stat.mean},
-                                            {x: 1.7, y: stat.mean}
-                                        ],
-                                        backgroundColor: color,
-                                        borderColor: color,
-                                        borderWidth: 3,
-                                        pointRadius: 0,
-                                        showLine: true,
-                                        tension: 0,
-                                        type: 'line'
-                                    });
-                                    
-                                    // Add 3SD error bands if available
-                                    if (stat.sd !== null && stat.sd > 0) {
+                                // Add mean line (for both single and multiple points)
+                                datasets.push({
+                                    label: validConcs.length > 1 ? 'Mean' : 'Value',
+                                    data: [
+                                        {x: 0.3, y: stat.mean},
+                                        {x: 1.7, y: stat.mean}
+                                    ],
+                                    backgroundColor: color,
+                                    borderColor: color,
+                                    borderWidth: 3,
+                                    pointRadius: 0,
+                                    showLine: true,
+                                    tension: 0,
+                                    type: 'line'
+                                });
+                                
+                                // Add 3SD error bands if available (only for multiple points)
+                                if (validConcs.length > 1 && stat.sd !== null && stat.sd > 0) {
                                         const threeSd = 3 * stat.sd;
                                         
                                         // Upper 3SD line
@@ -3074,7 +3092,6 @@ popt_list_py # This is returned to JavaScript
                                             type: 'line'
                                         });
                                     }
-                                }
                                 
                                 // Calculate appropriate Y-axis range including 3SD bounds
                                 const minVal = Math.min(...validConcs);
@@ -3091,10 +3108,17 @@ popt_list_py # This is returned to JavaScript
                                 }
                                 
                                 const range = rangeMax - rangeMin;
-                                const padding = range * 0.1; // 10% padding (reduced since we're already including 3SD)
+                                let padding = range * 0.1; // 10% padding (reduced since we're already including 3SD)
+                                
+                                // For single values, ensure minimum range for visibility
+                                if (range === 0) {
+                                    padding = Math.max(rangeMin * 0.2, 1); // 20% of value or minimum 1 unit
+                                }
                                 
                                 const yMin = Math.max(0.01, rangeMin - padding);
                                 const yMax = rangeMax + padding;
+                                
+                                console.log(`${stat.sampleName} Y-axis: ${yMin} to ${yMax} (range: ${range}, padding: ${padding})`);
                                 
                                 const iqcChart = new Chart(canvas.getContext('2d'), {
                                     type: 'scatter',
@@ -3168,12 +3192,14 @@ popt_list_py # This is returned to JavaScript
                                     filename: `${analyte}_${stat.sampleName}_IQC.png`,
                                     type: 'iqc_individual'
                                 });
+                                console.log(`Created IQC chart for ${stat.sampleName} and added to allCharts. Total charts: ${allCharts.length}`);
                             }
                         }
                     });
                     
                     // Add the horizontal charts row to the analyte section
                     analyteSection.appendChild(chartsRow);
+                    console.log(`Added IQC charts row to ${analyte} section. Row contains ${chartsRow.children.length} chart divs`);
                 }
                 
                 tablesContainer.appendChild(analyteSection);
@@ -3208,7 +3234,7 @@ popt_list_py # This is returned to JavaScript
                 const validEfficiencies = results.efficiencyData.filter(e => isFinite(e.efficiency));
                 if (validEfficiencies.length > 0) {
                     const avgEfficiency = validEfficiencies.reduce((sum, e) => sum + e.efficiency, 0) / validEfficiencies.length;
-                    summaryHTML += `- Average efficiency (of standards in fit): ${avgEfficiency.toFixed(1)}%`;
+                    summaryHTML += `- Average efficiency (of standards in fit): ${avgEfficiency.toFixed(4)}%`;
                 } else {
                     summaryHTML += `- Average efficiency: N/A (no valid efficiencies calculated)`;
                 }
@@ -3241,44 +3267,17 @@ popt_list_py # This is returned to JavaScript
             
             // Generate CSV files for each analyte
             for (const [analyte, results] of Object.entries(analysisResults)) {
-                // Results CSV
-                const resultsCSV = generateResultsCSV(results);
-                const resultsKey = `${outputFolder}_${analyte}_results.csv`; // Added outputFolder prefix
-                generatedFiles[resultsKey] = resultsCSV;
-                
-                // Efficiency CSV
-                const efficiencyCSV = generateEfficiencyCSV(results);
-                const efficiencyKey = `${outputFolder}_${analyte}_efficiency.csv`; // Added outputFolder prefix
-                generatedFiles[efficiencyKey] = efficiencyCSV;
-                
-                addDownloadItem(`${analyte} - Results`, resultsCSV, resultsKey);
-                addDownloadItem(`${analyte} - Efficiency`, efficiencyCSV, efficiencyKey);
+                // Individual analyte files removed to reduce output clutter
+                // All results and efficiency data are available in consolidated files
             }
             
-            // Combined results
+            // Essential consolidated files only
             if (Object.keys(analysisResults).length > 0) {
-                const combinedCSV = generateCombinedResultsCSV();
-                const combinedKey = `${outputFolder}_combined_results.csv`; // Added outputFolder prefix
-                generatedFiles[combinedKey] = combinedCSV;
-                addDownloadItem('Combined Results', combinedCSV, combinedKey);
-                
-                // Efficiency data (long format) - matches Python version
+                // Efficiency data - consolidated efficiency for all analytes
                 const efficiencyLongCSV = generateEfficiencyLongCSV();
                 const efficiencyLongKey = `${outputFolder}_efficiency_data.csv`;
                 generatedFiles[efficiencyLongKey] = efficiencyLongCSV;
-                addDownloadItem('Efficiency Data (Long Format)', efficiencyLongCSV, efficiencyLongKey);
-                
-                // Efficiency data (pivot table) - matches Python version  
-                const efficiencyPivotCSV = generateEfficiencyPivotCSV();
-                const efficiencyPivotKey = `${outputFolder}_efficiency_pivot.csv`;
-                generatedFiles[efficiencyPivotKey] = efficiencyPivotCSV;
-                addDownloadItem('Efficiency Data (Pivot)', efficiencyPivotCSV, efficiencyPivotKey);
-                
-                // Hook effect data - matches Python version
-                const hookEffectCSV = generateHookEffectCSV();
-                const hookEffectKey = `${outputFolder}_hook_effect_data.csv`;
-                generatedFiles[hookEffectKey] = hookEffectCSV;
-                addDownloadItem('Hook Effect Data', hookEffectCSV, hookEffectKey);
+                addDownloadItem('Efficiency Data', efficiencyLongCSV, efficiencyLongKey);
                 
                 // IQC values export - matches Python version
                 const iqcCSV = generateIQCExportCSV();
@@ -3287,12 +3286,6 @@ popt_list_py # This is returned to JavaScript
                     generatedFiles[iqcKey] = iqcCSV;
                     addDownloadItem('IQC Values Export', iqcCSV, iqcKey);
                 }
-            
-                // Summary report
-                const summaryText = generateSummaryReport();
-                const summaryKey = `${outputFolder}_analysis_summary.txt`; // Added outputFolder prefix
-                generatedFiles[summaryKey] = summaryText;
-                addDownloadItem('Analysis Summary', summaryText, summaryKey);
                 
                 // Add chart download items
                 allCharts.forEach(chartInfo => {
@@ -3309,78 +3302,6 @@ popt_list_py # This is returned to JavaScript
             }
         }
 
-        function generateResultsCSV(results) {
-            const headers = ['Sample', 'Location', 'Raw_MFI', 'Corrected_MFI', 'Calculated_Conc', 'Final_Conc', 'Below_Min_MFI', 'Below_Cutoff', 'Above_Max_MFI', 'In_Hook_Zone'];
-            
-            let csv = headers.join(',') + '\n';
-            
-            results.data.forEach(row => {
-                const csvRow = [
-                    '"' + String(row.sample).replace(/"/g, '""') + '"', // Quote sample names
-                    '"' + String(row.location).replace(/"/g, '""') + '"',
-                    formatMfiConc(row.mfi),
-                    formatMfiConc(row.correctedMfi),
-                    formatMfiConc(row.calculatedConc),
-                    formatMfiConc(row.finalConc),
-                    row.belowMinMfi,
-                    row.belowCutoff,
-                    row.aboveMaxMfi,
-                    row.inHookZone
-                ].join(',');
-                csv += csvRow + '\n';
-            });
-            
-            return csv;
-        }
-
-        function generateEfficiencyCSV(results) {
-            const headers = ['Concentration', 'Efficiency'];
-            let csv = headers.join(',') + '\n';
-            
-            results.efficiencyData.forEach(row => {
-                csv += `${formatNumber(row.concentration)},${isFinite(row.efficiency) ? row.efficiency.toFixed(1) : ''}\n`;
-            });
-            
-            return csv;
-        }
-
-        function generateCombinedResultsCSV() {
-            if (Object.keys(analysisResults).length === 0) return "";
-
-            const firstAnalyteKey = Object.keys(analysisResults)[0];
-            const sampleDataRef = analysisResults[firstAnalyteKey].data; // Use data from the first analyte as reference for samples
-
-            const headers = ['Sample', 'Location'];
-            Object.keys(analysisResults).forEach(analyte => {
-                headers.push(`${analyte}_Final_Conc`, `${analyte}_Below_Min_MFI`, `${analyte}_Below_Cutoff`, `${analyte}_Above_Max_MFI`, `${analyte}_In_Hook_Zone`);
-            });
-            
-            let csv = headers.join(',') + '\n';
-            
-            sampleDataRef.forEach(refRow => {
-                const csvRow = [
-                    '"' + String(refRow.sample).replace(/"/g, '""') + '"', 
-                    '"' + String(refRow.location).replace(/"/g, '""') + '"'
-                ];
-                
-                Object.keys(analysisResults).forEach(analyte => {
-                    const analyteDataForSample = analysisResults[analyte].data.find(d => d.sample === refRow.sample && d.location === refRow.location);
-                    if (analyteDataForSample) {
-                        csvRow.push(formatMfiConc(analyteDataForSample.finalConc));
-                        csvRow.push(analyteDataForSample.belowMinMfi);
-                        csvRow.push(analyteDataForSample.belowCutoff);
-                        csvRow.push(analyteDataForSample.aboveMaxMfi);
-                        csvRow.push(analyteDataForSample.inHookZone);
-                    } else {
-                        csvRow.push('', '', '', '', ''); // Placeholder if somehow data is missing for this sample-analyte combo
-                    }
-                });
-                
-                csv += csvRow.join(',') + '\n';
-            });
-            
-            return csv;
-        }
         
         function generateEfficiencyLongCSV() {
             // Generate efficiency data in long format (Analyte, Concentration, Efficiency columns)
@@ -3390,66 +3311,13 @@ popt_list_py # This is returned to JavaScript
             Object.keys(analysisResults).forEach(analyte => {
                 const results = analysisResults[analyte];
                 results.efficiencyData.forEach(row => {
-                    csv += `${analyte},${formatMfiConc(row.concentration)},${isFinite(row.efficiency) ? row.efficiency.toFixed(1) : ''}\n`;
+                    csv += `${analyte},${formatMfiConc(row.concentration)},${isFinite(row.efficiency) ? row.efficiency.toFixed(4) : ''}\n`;
                 });
             });
             
             return csv;
         }
-        
-        function generateEfficiencyPivotCSV() {
-            // Generate efficiency data in pivot format (Concentration rows, Analyte columns)
-            const allConcentrations = new Set();
-            
-            // Collect all unique concentrations
-            Object.keys(analysisResults).forEach(analyte => {
-                const results = analysisResults[analyte];
-                results.efficiencyData.forEach(row => {
-                    allConcentrations.add(row.concentration);
-                });
-            });
-            
-            const sortedConcentrations = Array.from(allConcentrations).sort((a, b) => a - b);
-            const analytes = Object.keys(analysisResults);
-            
-            // Headers: Concentration, then each analyte
-            const headers = ['Concentration', ...analytes];
-            let csv = headers.join(',') + '\n';
-            
-            // Data rows
-            sortedConcentrations.forEach(concentration => {
-                const row = [formatMfiConc(concentration)];
-                
-                analytes.forEach(analyte => {
-                    const results = analysisResults[analyte];
-                    const efficiencyRow = results.efficiencyData.find(r => r.concentration === concentration);
-                    const efficiency = efficiencyRow && isFinite(efficiencyRow.efficiency) ? efficiencyRow.efficiency.toFixed(1) : '';
-                    row.push(efficiency);
-                });
-                
-                csv += row.join(',') + '\n';
-            });
-            
-            return csv;
-        }
-        
-        function generateHookEffectCSV() {
-            // Generate hook effect data (matches Python version format)
-            const headers = ['Analyte', 'Hook_Detected', 'Hook_Concentration', 'Standards_Excluded'];
-            let csv = headers.join(',') + '\n';
-            
-            Object.keys(analysisResults).forEach(analyte => {
-                const results = analysisResults[analyte];
-                const hookDetected = results.hookDetected ? 'True' : 'False';
-                const hookConc = results.hookDetected && results.hookConcentration ? formatMfiConc(results.hookConcentration) : '';
-                const standardsExcluded = results.hookDetected ? (results.allStandards.length - results.standards.length) : 0;
-                
-                csv += `${analyte},${hookDetected},${hookConc},${standardsExcluded}\n`;
-            });
-            
-            return csv;
-        }
-        
+                        
         function generateIQCExportCSV() {
             // Generate IQC (Internal Quality Control) values export for samples matching IQC pattern
             // Returns CSV string if IQC samples found, null otherwise
@@ -3462,12 +3330,18 @@ popt_list_py # This is returned to JavaScript
             // Find all IQC samples across all analytes
             allAnalytes.forEach(analyte => {
                 const results = analysisResults[analyte];
+                console.log(`Checking analyte ${analyte} for IQC samples. Total samples: ${results.data.length}`);
                 const analyteIQCSamples = results.data.filter(row => {
                     if (!row.sample) return false;
                     const sampleStr = String(row.sample).toUpperCase();
-                    return sampleStr.startsWith('IQC') || sampleStr.startsWith('CONTROL');
+                    const isIQC = sampleStr.startsWith('IQC') || sampleStr.startsWith('CONTROL');
+                    if (isIQC) {
+                        console.log(`Found IQC sample: ${row.sample} (${sampleStr})`);
+                    }
+                    return isIQC;
                 });
                 
+                console.log(`Found ${analyteIQCSamples.length} IQC samples for ${analyte}`);
                 if (analyteIQCSamples.length > 0) {
                     hasIQCSamples = true;
                     analyteIQCSamples.forEach(sample => {
@@ -3533,50 +3407,6 @@ popt_list_py # This is returned to JavaScript
             });
             
             return csv;
-        }
-
-        function generateSummaryReport() {
-             if (Object.keys(analysisResults).length === 0 && !processedData) return "No analysis performed or data processed.";
-
-            let report = 'Luminex Analysis Summary Report\n';
-            report += '=====================================\n\n';
-            report += `Analysis Date: ${new Date().toISOString()}\n`;
-            report += `Output Folder Name: ${document.getElementById('outputFolder').value}\n`;
-            report += `Plate Format: ${document.getElementById('plateFormat').value}\n`;
-            report += `Dilution Factor: ${document.getElementById('dilutionFactor').value}\n`;
-            report += `Hook Effect Detection: ${document.getElementById('detectHook').checked ? 'Enabled' : 'Disabled'}\n`;
-            report += `Low Standard Filtering: ${document.getElementById('filterLowStd').checked ? 'Enabled' : 'Disabled'}\n\n`;
-            
-            if (processedData && processedData.data) {
-                 report += `Total Samples in Processed Data: ${processedData.data.length}\n`;
-            }
-            report += `Analytes Processed: ${Object.keys(analysisResults).length}\n\n`;
-            
-            if (Object.keys(analysisResults).length > 0) {
-                report += 'Analyte Details:\n';
-                report += '----------------\n';
-            
-                for (const [analyte, results] of Object.entries(analysisResults)) {
-                    report += `\n${analyte}:\n`;
-                    report += `  Standards used in fit: ${results.standards.length} / ${results.allStandards.length}\n`;
-                    report += `  Background mean: ${formatNumber(results.backgroundMean)}\n`;
-                    report += `  Hook effect detected: ${results.hookDetected ? 'Yes' : 'No'}\n`;
-                     if (results.hookDetected && results.hookConcentration) {
-                        report += `  Hook concentration (approx.): ${formatNumber(results.hookConcentration)}\n`;
-                    }
-                    const validEfficiencies = results.efficiencyData.filter(e => isFinite(e.efficiency));
-                    if (validEfficiencies.length > 0) {
-                        const avgEfficiency = validEfficiencies.reduce((sum, e) => sum + e.efficiency, 0) / validEfficiencies.length;
-                        report += `  Average efficiency (of standards in fit): ${avgEfficiency.toFixed(1)}%\n`;
-                    } else {
-                        report += `  Average efficiency: N/A\n`;
-                    }
-                }
-            } else {
-                report += 'No analytes were successfully analyzed.\n';
-            }
-            
-            return report;
         }
 
         function addDownloadItem(displayName, content, filename = null) {
