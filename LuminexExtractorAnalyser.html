@@ -9,272 +9,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
     <script src="https://cdn.jsdelivr.net/pyodide/v0.25.1/full/pyodide.js"></script>
-    <style>
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background-color: #f5f5f5;
-            color: #333;
-            line-height: 1.6;
-        }
-
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-
-        .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 2rem;
-            border-radius: 10px;
-            margin-bottom: 2rem;
-            text-align: center;
-        }
-
-        .section {
-            background: white;
-            border-radius: 10px;
-            padding: 1.5rem;
-            margin-bottom: 1.5rem;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-
-        .section h2 {
-            color: #333;
-            margin-bottom: 1rem;
-            border-bottom: 2px solid #e0e0e0;
-            padding-bottom: 0.5rem;
-        }
-
-        .form-group {
-            margin-bottom: 1rem;
-        }
-
-        .form-group label {
-            display: block;
-            margin-bottom: 0.5rem;
-            font-weight: 600;
-            color: #555;
-        }
-
-        .form-group input, .form-group select {
-            width: 100%;
-            padding: 0.75rem;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            font-size: 1rem;
-        }
-
-        .form-group input:focus, .form-group select:focus {
-            outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-        }
-
-        .btn {
-            background: #667eea;
-            color: white;
-            border: none;
-            padding: 0.75rem 1.5rem;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 1rem;
-            transition: background-color 0.3s;
-        }
-
-        .btn:hover {
-            background: #5a6fd8;
-        }
-
-        .btn:disabled {
-            background: #ccc;
-            cursor: not-allowed;
-        }
-
-        .checkbox-group {
-            display: flex;
-            align-items: center;
-            margin-bottom: 1rem;
-        }
-
-        .checkbox-group input[type="checkbox"] {
-            width: auto;
-            margin-right: 0.5rem;
-        }
-
-        .grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 1rem;
-        }
-
-        .file-input {
-            position: relative;
-            display: inline-block;
-            cursor: pointer;
-            background: #f8f9fa;
-            border: 2px dashed #dee2e6;
-            border-radius: 5px;
-            padding: 2rem;
-            text-align: center;
-            transition: all 0.3s;
-        }
-
-        .file-input:hover {
-            border-color: #667eea;
-            background: #f0f4ff;
-        }
-
-        .file-input input[type="file"] {
-            position: absolute;
-            opacity: 0;
-            width: 100%;
-            height: 100%;
-            cursor: pointer;
-        }
-
-        .progress-bar {
-            width: 100%;
-            height: 20px;
-            background: #e0e0e0;
-            border-radius: 10px;
-            overflow: hidden;
-            margin: 1rem 0;
-        }
-
-        .progress-fill {
-            height: 100%;
-            background: linear-gradient(90deg, #667eea, #764ba2);
-            width: 0%;
-            transition: width 0.3s;
-        }
-
-        .results {
-            background: #f8f9fa;
-            border-radius: 5px;
-            padding: 1rem;
-            max-height: 400px;
-            overflow-y: auto;
-            font-family: 'Monaco', 'Consolas', monospace;
-            font-size: 0.9rem;
-        }
-
-        .graph-container {
-            margin: 1rem 0;
-            padding: 1rem;
-            background: white;
-            border-radius: 5px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-        }
-
-        .graph-container canvas {
-            max-width: 100% !important;
-            height: 400px !important;
-            display: block;
-        }
-        
-        .chart-container {
-            width: 100%;
-            height: 400px;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .status {
-            padding: 0.75rem;
-            border-radius: 5px;
-            margin: 1rem 0;
-            text-align: center;
-            font-weight: 600;
-        }
-
-        .status.info {
-            background: #d1ecf1;
-            color: #0c5460;
-            border: 1px solid #bee5eb;
-        }
-
-        .status.success {
-            background: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-        }
-
-        .status.error {
-            background: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
-        }
-
-        .download-section {
-            display: none;
-            margin-top: 2rem;
-        }
-
-        .download-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 0.5rem;
-            border-bottom: 1px solid #eee;
-        }
-
-        .download-item:last-child {
-            border-bottom: none;
-        }
-
-        .tab-container {
-            margin-top: 2rem;
-        }
-
-        .tab-buttons {
-            display: flex;
-            background: #f8f9fa;
-            border-radius: 5px;
-            padding: 0.25rem;
-            margin-bottom: 1rem;
-        }
-
-        .tab-button {
-            flex: 1;
-            padding: 0.75rem;
-            border: none;
-            background: transparent;
-            cursor: pointer;
-            border-radius: 3px;
-            transition: all 0.3s;
-        }
-
-        .tab-button.active {
-            background: white;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-        }
-
-        .tab-content {
-            display: none;
-        }
-
-        .tab-content.active {
-            display: block;
-        }
-
-        @media (max-width: 768px) {
-            .container {
-                padding: 10px;
-            }
-            
-            .grid {
-                grid-template-columns: 1fr;
-            }
-        }
-    </style>
+    <link rel="stylesheet" href="styles.css">
 </head>
 <body>
     <div class="container">
@@ -284,92 +19,171 @@
         </div>
 
         <div class="section">
-            <h2>1. File Selection</h2>
+            <h2>📁 File Selection & Output Settings</h2>
+            
+            <!-- Main CSV File Input -->
             <div class="form-group">
-                <label for="csvFile">Input CSV File:</label>
+                <label for="csvFile">
+                    <strong>Luminex CSV Data File</strong>
+                    <small style="display: block; font-weight: normal; color: #666; margin-top: 0.25rem;">
+                        Select your exported Luminex CSV file containing sample data
+                    </small>
+                </label>
                 <div class="file-input">
                     <input type="file" id="csvFile" accept=".csv" />
-                    <p>Click here to select your Luminex CSV file</p>
+                    <p>📄 Click here to select your Luminex CSV file</p>
                 </div>
             </div>
             
-            <div class="form-group">
-                <label for="outputFolder">Output Folder Name:</label>
-                <input type="text" id="outputFolder" value="LuminexResults" placeholder="Enter folder name for outputs" />
-            </div>
-            
-            <div class="form-group">
-                <label for="outputDirectory">Output Directory:</label>
-                <button class="btn" id="selectOutputDir">Select Output Directory</button>
-                <p id="selectedDirPath" style="margin-top: 0.5rem; font-style: italic; color: #666;">No directory selected (files will download to default location (Downloads folder usually))</p>
+            <!-- Output Configuration -->
+            <div class="grid">
+                <div class="form-group">
+                    <label for="outputFolder">
+                        <strong>Output Folder Name</strong>
+                        <small style="display: block; font-weight: normal; color: #666; margin-top: 0.25rem;">
+                            Name for the results folder
+                        </small>
+                    </label>
+                    <input type="text" id="outputFolder" value="LuminexResults" placeholder="e.g. LuminexResults_2024-01-15" />
+                </div>
+                
+                <div class="form-group">
+                    <label for="outputDirectory">
+                        <strong>Output Location</strong>
+                        <small style="display: block; font-weight: normal; color: #666; margin-top: 0.25rem;">
+                            Choose where to save results
+                        </small>
+                    </label>
+                    <button class="btn" id="selectOutputDir">📂 Choose Directory</button>
+                    <p id="selectedDirPath" style="margin-top: 0.5rem; font-size: 0.9rem; color: #666;">
+                        💡 <em>No custom directory selected - files will download to your default Downloads folder</em>
+                    </p>
+                </div>
             </div>
         </div>
 
         <div class="section">
-            <h2>2. File Preprocessing</h2>
+            <h2>🔄 File Preprocessing</h2>
+            <p style="color: #666; margin-bottom: 1.5rem;">Configure how the Luminex CSV file should be processed and validated.</p>
+            
             <div class="grid">
                 <div class="form-group">
-                    <label for="plateFormat">Plate Format:</label>
+                    <label for="plateFormat">
+                        <strong>Plate Format</strong>
+                        <small style="display: block; font-weight: normal; color: #666; margin-top: 0.25rem;">
+                            Select the format of your Luminex plate
+                        </small>
+                    </label>
                     <select id="plateFormat">
-                        <option value="96-well">96-well</option>
-                        <option value="384-well">384-well</option>
+                        <option value="96-well">96-well plate</option>
+                        <option value="384-well">384-well plate</option>
                     </select>
                 </div>
                 
-                <div class="checkbox-group">
-                    <input type="checkbox" id="fullPlate" checked />
-                    <label for="fullPlate">Full Plate</label>
+                <div class="form-group">
+                    <label for="numWells">
+                        <strong>Number of Wells</strong>
+                        <small style="display: block; font-weight: normal; color: #666; margin-top: 0.25rem;">
+                            Total wells to process (auto-calculated for full plates)
+                        </small>
+                    </label>
+                    <input type="number" id="numWells" value="96" min="1" max="384" disabled />
                 </div>
                 
                 <div class="form-group">
-                    <label for="numWells">Number of Wells:</label>
-                    <input type="number" id="numWells" value="96" min="1" max="384" disabled />
+                    <div class="checkbox-group" style="margin-top: 1.5rem;">
+                        <input type="checkbox" id="fullPlate" checked />
+                        <label for="fullPlate">🧪 <strong>Process Full Plate</strong></label>
+                        <small style="display: block; color: #666; margin-top: 0.25rem; margin-left: 1.5rem;">
+                            Process all wells in the plate (uncheck to specify custom well count)
+                        </small>
+                    </div>
                 </div>
             </div>
             
-            <button class="btn" id="preprocessBtn" disabled>Preprocess File</button>
+            <button class="btn" id="preprocessBtn" disabled style="margin-top: 1rem;">
+                🚀 Start Preprocessing
+            </button>
         </div>
 
         <div class="section">
-            <h2>3. Analysis Options</h2>
-            <div class="grid">
-                <div class="form-group">
-                    <label for="standardsFile">Standards CSV (optional):</label>
-                    <div class="file-input">
-                        <input type="file" id="standardsFile" accept=".csv" />
-                        <p id="standardsFileStatus">Click to select standards file</p>
+            <h2>⚙️ Analysis Configuration</h2>
+            
+            <!-- Optional Configuration Files -->
+            <div style="background: #f8f9fa; border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem;">
+                <h3 style="margin-bottom: 1rem; color: #495057; font-size: 1.1rem;">📊 Optional Configuration Files</h3>
+                <div class="grid">
+                    <div class="form-group">
+                        <label for="standardsFile">
+                            <strong>Standards Concentration File</strong>
+                            <small style="display: block; font-weight: normal; color: #666; margin-top: 0.25rem;">
+                                CSV with standard sample concentrations (optional - will auto-detect if not provided)
+                            </small>
+                        </label>
+                        <div class="file-input">
+                            <input type="file" id="standardsFile" accept=".csv" />
+                            <p id="standardsFileStatus">📋 Click to select standards file (optional)</p>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="cutoffFile">
+                            <strong>Sample Cutoff Values</strong>
+                            <small style="display: block; font-weight: normal; color: #666; margin-top: 0.25rem;">
+                                CSV with cutoff concentrations for sample classification (optional)
+                            </small>
+                        </label>
+                        <div class="file-input">
+                            <input type="file" id="cutoffFile" accept=".csv" />
+                            <p id="cutoffFileStatus">✂️ Click to select cutoff file (optional)</p>
+                        </div>
                     </div>
                 </div>
+            </div>
+            
+            <!-- Analysis Parameters -->
+            <div style="background: #fff; border: 1px solid #e9ecef; border-radius: 8px; padding: 1rem;">
+                <h3 style="margin-bottom: 1rem; color: #495057; font-size: 1.1rem;">🔧 Analysis Parameters</h3>
+                <div class="grid">
                 
-                <div class="form-group">
-                    <label for="cutoffFile">Cutoff CSV (optional):</label>
-                    <div class="file-input">
-                        <input type="file" id="cutoffFile" accept=".csv" />
-                        <p id="cutoffFileStatus">Click to select cutoff file</p>
+                    <div class="form-group">
+                        <label for="bgSample">
+                            <strong>Background Sample Name</strong>
+                            <small style="display: block; font-weight: normal; color: #666; margin-top: 0.25rem;">
+                                Sample name used for background subtraction
+                            </small>
+                        </label>
+                        <input type="text" id="bgSample" value="Background0" placeholder="e.g. Background0, Blank" />
                     </div>
-                </div>
-                
-                <div class="form-group">
-                    <label for="bgSample">Background Sample:</label>
-                    <input type="text" id="bgSample" value="Background0" />
-                </div>
-                
-                <div class="form-group">
-                    <label for="dilutionFactor">Dilution Multiplier:</label>
-                    <input type="number" id="dilutionFactor" value="1" min="0.01" step="0.01" />
-                </div>
-                
-                <div class="checkbox-group">
-                    <input type="checkbox" id="detectHook" checked />
-                    <label for="detectHook">Detect Hook Effect</label>
-                </div>
-                
-                <div class="checkbox-group">
-                    <input type="checkbox" id="filterLowStd" />
-                    <label for="filterLowStd">Filter Low Standards</label>
-                    <small style="display: block; color: #666; margin-top: 0.25rem;">
-                        (Remove low standards that are too close to background or don't follow dose-response pattern)
-                    </small>
+                    
+                    <div class="form-group">
+                        <label for="dilutionFactor">
+                            <strong>Dilution Multiplier</strong>
+                            <small style="display: block; font-weight: normal; color: #666; margin-top: 0.25rem;">
+                                Factor to adjust concentrations (e.g. 2 for 1:2 dilution)
+                            </small>
+                        </label>
+                        <input type="number" id="dilutionFactor" value="1" min="0.01" step="0.01" placeholder="1.0" />
+                    </div>
+                    
+                    <div class="form-group">
+                        <label style="font-weight: 600; margin-bottom: 0.75rem; display: block;">Analysis Options</label>
+                        <div class="checkbox-group" style="margin-bottom: 0.5rem;">
+                            <input type="checkbox" id="detectHook" checked />
+                            <label for="detectHook">🔍 Detect Hook Effect</label>
+                            <small style="display: block; color: #666; margin-top: 0.25rem; margin-left: 1.5rem;">
+                                Identify high-dose inhibition in immunoassays
+                            </small>
+                        </div>
+                        
+                        <div class="checkbox-group">
+                            <input type="checkbox" id="filterLowStd" />
+                            <label for="filterLowStd">🧹 Filter Low Standards</label>
+                            <small style="display: block; color: #666; margin-top: 0.25rem; margin-left: 1.5rem;">
+                                Remove standards too close to background or breaking dose-response pattern
+                            </small>
+                        </div>
+                    </div>
                 </div>
             </div>
             
@@ -408,6 +222,7 @@
                 <div class="tab-buttons">
                     <button class="tab-button active" data-tab="graphs">Graphs</button>
                     <button class="tab-button" data-tab="data">Data Tables</button>
+                    <button class="tab-button" data-tab="iqc">IQC Analysis</button>
                     <button class="tab-button" data-tab="summary">Summary</button>
                 </div>
                 
@@ -425,6 +240,17 @@
                 
                 <div class="tab-content" id="data">
                     <div id="dataTablesContainer"></div>
+                </div>
+                
+                <div class="tab-content" id="iqc">
+                    <div id="iqcContainer">
+                        <div id="iqcSummary" style="margin-bottom: 1rem; padding: 1rem; background: #f8f9fa; border-radius: 5px;">
+                            <h3>Internal Quality Control (IQC) Analysis</h3>
+                            <p>This section displays data and analysis for quality control samples (IQC1, IQC2, IQC3 or Control1, Control2, Control3).</p>
+                        </div>
+                        <div id="iqcChartsContainer"></div>
+                        <div id="iqcTablesContainer"></div>
+                    </div>
                 </div>
                 
                 <div class="tab-content" id="summary">
@@ -455,6 +281,162 @@
         let globalXAxisLog = true;  // Default X-axis to log
         let globalYAxisLog = false; // Default Y-axis to linear
         let allCharts = []; // Array to store all chart instances
+
+        // Function to export chart as image data URL
+        async function exportChartAsImage(chartInfo) {
+            try {
+                const canvas = chartInfo.canvas;
+                console.log(`Exporting chart: ${chartInfo.filename}`, {
+                    canvas: canvas,
+                    width: canvas.width,
+                    height: canvas.height,
+                    type: chartInfo.type,
+                    chartExists: !!chartInfo.chart,
+                    canvasInDOM: document.body.contains(canvas),
+                    canvasParent: canvas.parentElement ? canvas.parentElement.className : 'no parent'
+                });
+                
+                // Check if canvas has content
+                const context = canvas.getContext('2d');
+                const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+                const hasContent = imageData.data.some(pixel => pixel !== 0);
+                console.log(`Canvas has content: ${hasContent}`);
+                
+                // If no content, try to force a redraw
+                if (!hasContent && chartInfo.chart) {
+                    console.log('Canvas empty, forcing chart redraw...');
+                    chartInfo.chart.update('none');
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                }
+                
+                // Convert canvas to blob directly (better for JSZip)
+                return new Promise((resolve, reject) => {
+                    canvas.toBlob((blob) => {
+                        if (blob) {
+                            console.log(`Export successful: ${blob.size} bytes for ${chartInfo.filename}`);
+                            resolve(blob);
+                        } else {
+                            console.error(`Failed to create blob for ${chartInfo.filename}`);
+                            reject(new Error('Failed to create blob'));
+                        }
+                    }, 'image/png', 1.0);
+                });
+            } catch (error) {
+                console.error('Error exporting chart:', chartInfo.filename, error);
+                return null;
+            }
+        }
+
+        // Function to add all charts to generated files for export
+        async function addChartsToExport() {
+            const outputFolder = document.getElementById('outputFolder').value || "LuminexResults";
+            
+            console.log(`\n=== STARTING CHART EXPORT ===`);
+            console.log(`Found ${allCharts.length} total charts, ${allCharts.filter(c => c.type === 'standard_curve').length} standard curves to export`);
+            
+            // Ensure graphs tab is active before export
+            switchTab('graphs');
+            
+            // Wait longer for charts to fully render and tab to be active
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            
+            // Filter charts to only export standard curves (skip IQC charts)
+            const chartsToExport = allCharts.filter(chart => chart.type === 'standard_curve');
+            console.log(`Filtered to ${chartsToExport.length} standard curve charts for export`);
+            
+            // Process charts sequentially to ensure proper timing
+            for (let i = 0; i < chartsToExport.length; i++) {
+                const chartInfo = chartsToExport[i];
+                console.log(`Processing standard curve ${i + 1}/${chartsToExport.length}: ${chartInfo.filename}`);
+                
+                if (!chartInfo || !chartInfo.canvas || !chartInfo.filename) {
+                    console.error(`❌ Invalid chart info for ${chartInfo?.filename || 'unknown'}`);
+                    continue;
+                }
+                
+                try {
+                    // Check canvas status
+                    const canvasInDOM = document.contains(chartInfo.canvas);
+                    if (!canvasInDOM) {
+                        console.error(`❌ Canvas not in DOM for ${chartInfo.filename}`);
+                        continue;
+                    }
+                    
+                    // If canvas has lost dimensions, force a complete refresh
+                    if (chartInfo.canvas.width === 0 || chartInfo.canvas.height === 0) {
+                        console.warn(`Canvas lost dimensions for ${chartInfo.filename}, forcing complete refresh...`);
+                        
+                        // Destroy and recreate the chart
+                        if (chartInfo.chart && typeof chartInfo.chart.destroy === 'function') {
+                            chartInfo.chart.destroy();
+                        }
+                        
+                        // Set canvas dimensions explicitly
+                        chartInfo.canvas.width = 1080;
+                        chartInfo.canvas.height = 400;
+                        chartInfo.canvas.style.width = '1080px';
+                        chartInfo.canvas.style.height = '400px';
+                        
+                        // Recreate Chart.js instance with same configuration
+                        const ctx = chartInfo.canvas.getContext('2d');
+                        console.log(`Recreating chart for export: ${chartInfo.filename}`);
+                        
+                        // We'll need to skip this chart for now since we don't have the original data
+                        console.warn(`⚠️ Skipping chart with lost dimensions: ${chartInfo.filename}`);
+                        continue;
+                    }
+                    
+                    // Force chart to update/render before export with multiple attempts
+                    if (chartInfo.chart && typeof chartInfo.chart.update === 'function') {
+                        // Multiple resize attempts
+                        for (let attempt = 0; attempt < 3; attempt++) {
+                            chartInfo.chart.update('none');
+                            chartInfo.chart.resize();
+                            if (typeof chartInfo.chart.render === 'function') {
+                                chartInfo.chart.render();
+                            }
+                            await new Promise(resolve => setTimeout(resolve, 300));
+                            
+                            // Check if dimensions are now correct
+                            if (chartInfo.canvas.width > 0 && chartInfo.canvas.height > 0) {
+                                console.log(`Chart resize successful on attempt ${attempt + 1}: ${chartInfo.canvas.width}x${chartInfo.canvas.height}`);
+                                break;
+                            }
+                        }
+                    }
+                    
+                    // Final check and manual dimension setting if still 0x0
+                    if (chartInfo.canvas.width === 0 || chartInfo.canvas.height === 0) {
+                        console.warn(`Chart still has 0 dimensions, forcing manual resize...`);
+                        chartInfo.canvas.width = 1080;
+                        chartInfo.canvas.height = 400;
+                        if (chartInfo.chart && typeof chartInfo.chart.resize === 'function') {
+                            chartInfo.chart.resize();
+                            if (typeof chartInfo.chart.render === 'function') {
+                                chartInfo.chart.render();
+                            }
+                        }
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                    }
+                    
+                    const imageBytes = await exportChartAsImage(chartInfo);
+                    
+                    if (imageBytes && (imageBytes.size > 0 || imageBytes.length > 0)) {
+                        const filename = `${outputFolder}_${chartInfo.filename}`;
+                        generatedFiles[filename] = imageBytes;
+                        console.log(`✅ Exported: ${filename} (${imageBytes.size || imageBytes.length} bytes)`);
+                    } else {
+                        console.warn(`⚠️ Failed to export: ${chartInfo.filename}`);
+                    }
+                } catch (error) {
+                    console.warn(`⚠️ Error exporting ${chartInfo.filename}: ${error.message}`);
+                }
+            }
+            
+            console.log(`=== CHART EXPORT COMPLETE ===`);
+            const chartFiles = Object.keys(generatedFiles).filter(f => f.includes('.png'));
+            console.log(`Successfully exported ${chartFiles.length} PNG files`);
+        }
 
         // Initialize event listeners
         document.addEventListener('DOMContentLoaded', function() {
@@ -569,11 +551,11 @@
             btn.textContent = globalXAxisLog ? 'X-Axis: Log' : 'X-Axis: Linear';
             
             // Update all charts
-            allCharts.forEach(chart => {
-                if (chart && chart.options && chart.options.scales && chart.options.scales.x) {
-                    chart.options.scales.x.type = globalXAxisLog ? 'logarithmic' : 'linear';
-                    chart.options.scales.x.title.text = globalXAxisLog ? 'Concentration (Log Scale)' : 'Concentration (Linear Scale)';
-                    chart.update('none');
+            allCharts.forEach(chartObj => {
+                if (chartObj.chart && chartObj.chart.options && chartObj.chart.options.scales && chartObj.chart.options.scales.x) {
+                    chartObj.chart.options.scales.x.type = globalXAxisLog ? 'logarithmic' : 'linear';
+                    chartObj.chart.options.scales.x.title.text = globalXAxisLog ? 'Concentration (Log Scale)' : 'Concentration (Linear Scale)';
+                    chartObj.chart.update('none');
                 }
             });
         }
@@ -584,11 +566,11 @@
             btn.textContent = globalYAxisLog ? 'Y-Axis: Log' : 'Y-Axis: Linear';
             
             // Update all charts
-            allCharts.forEach(chart => {
-                if (chart && chart.options && chart.options.scales && chart.options.scales.y) {
-                    chart.options.scales.y.type = globalYAxisLog ? 'logarithmic' : 'linear';
-                    chart.options.scales.y.title.text = globalYAxisLog ? 'Corrected MFI (Log Scale)' : 'Corrected MFI (Linear Scale)';
-                    chart.update('none');
+            allCharts.forEach(chartObj => {
+                if (chartObj.chart && chartObj.chart.options && chartObj.chart.options.scales && chartObj.chart.options.scales.y) {
+                    chartObj.chart.options.scales.y.type = globalYAxisLog ? 'logarithmic' : 'linear';
+                    chartObj.chart.options.scales.y.title.text = globalYAxisLog ? 'Corrected MFI (Log Scale)' : 'Corrected MFI (Linear Scale)';
+                    chartObj.chart.update('none');
                 }
             });
         }
@@ -1736,14 +1718,22 @@
                 
                 updateProgress(95);
                 
+                // Show results section BEFORE generating charts to ensure proper canvas sizing
+                document.getElementById('resultsSection').style.display = 'block';
+                
+                // Ensure the Graphs tab is explicitly active before creating charts
+                switchTab('graphs');
+                
+                // Wait for the browser to render the visible section and tab content
+                await new Promise(resolve => setTimeout(resolve, 300));
+                
                 // Generate visualizations and files
                 await generateResults();
                 
                 updateProgress(100);
                 updateStatus('Analysis completed successfully!', 'success');
                 
-                // Show results section
-                document.getElementById('resultsSection').style.display = 'block';
+                // Show download section
                 document.getElementById('downloadSection').style.display = 'block';
                 
                 // Enable global axis controls
@@ -2284,7 +2274,12 @@ popt_list_py # This is returned to JavaScript
             // Clear previous results
             document.getElementById('graphsContainer').innerHTML = '';
             document.getElementById('dataTablesContainer').innerHTML = '';
+            document.getElementById('iqcChartsContainer').innerHTML = '';
+            document.getElementById('iqcTablesContainer').innerHTML = '';
             document.getElementById('summaryContainer').innerHTML = '';
+            
+            // Clear previous charts from global array
+            allCharts.length = 0;
             // Don't reset generatedFiles here if preprocessing files are to be kept for download all
             // generatedFiles = {}; // This was here, moved a more specific reset if needed for analysis results only
 
@@ -2303,11 +2298,14 @@ popt_list_py # This is returned to JavaScript
                 generateAnalyteDataTables(analyte, results);
             }
             
+            // Generate IQC analysis
+            generateIQCAnalysis();
+            
             // Generate summary
             generateSummary();
             
             // Generate downloadable files
-            generateDownloadableFiles();
+            await generateDownloadableFiles();
         }
 
         async function generateAnalyteGraphs(analyte, results) { // Made async
@@ -2323,10 +2321,14 @@ popt_list_py # This is returned to JavaScript
             canvasContainer.className = 'chart-container';
             
             const canvas = document.createElement('canvas');
-            canvas.id = `chart-${analyte}`;
+            const sanitizedAnalyte = analyte.replace(/[^a-zA-Z0-9_-]/g, '_');
+            canvas.id = `chart-${sanitizedAnalyte}`;
             canvasContainer.appendChild(canvas);
             graphDiv.appendChild(canvasContainer);
             container.appendChild(graphDiv);
+            
+            // Wait for DOM insertion to complete before initializing Chart.js
+            await new Promise(resolve => setTimeout(resolve, 50));
             
             // Generate standard curve chart
             const ctx = canvas.getContext('2d');
@@ -2550,13 +2552,50 @@ popt_list_py # This is returned to JavaScript
                 }
             });
             
-            // Add chart to global array for axis control
-            allCharts.push(chart);
+            // Add chart to global array for axis control and export
+            const chartInfo = {
+                chart: chart,
+                canvas: canvas,
+                analyte: analyte,
+                filename: `${analyte}_standard_curve.png`,
+                type: 'standard_curve'
+            };
+            allCharts.push(chartInfo);
+            console.log(`Added standard curve chart to allCharts: ${analyte}`, chartInfo);
             
-            // Force chart to resize properly
-            setTimeout(() => {
-                if (chart && typeof chart.resize === 'function') chart.resize();
-            }, 100);
+            // Force chart to render and resize properly and wait for it
+            await new Promise(resolve => {
+                setTimeout(() => {
+                    // Force multiple resize attempts to ensure proper dimensions
+                    if (chart && typeof chart.update === 'function') {
+                        chart.update('none'); // Force update
+                    }
+                    if (chart && typeof chart.resize === 'function') {
+                        chart.resize();
+                    }
+                    
+                    // Additional forced render
+                    if (chart && typeof chart.render === 'function') {
+                        chart.render();
+                    }
+                    
+                    // Check if canvas got proper dimensions
+                    console.log(`Chart rendered and resized for ${analyte}: ${canvas.width}x${canvas.height}`);
+                    
+                    // If canvas still has 0 dimensions, try another resize
+                    if (canvas.width === 0 || canvas.height === 0) {
+                        console.warn(`Canvas has 0 dimensions for ${analyte}, attempting additional resize...`);
+                        setTimeout(() => {
+                            if (chart && typeof chart.resize === 'function') {
+                                chart.resize();
+                            }
+                            resolve();
+                        }, 200);
+                    } else {
+                        resolve();
+                    }
+                }, 500); // Increased delay to ensure proper rendering
+            });
             
             // Add curve parameters text
             const paramsDiv = document.createElement('div');
@@ -2711,6 +2750,436 @@ popt_list_py # This is returned to JavaScript
             container.appendChild(tableDiv);
         }
 
+        function generateIQCAnalysis() {
+            const chartsContainer = document.getElementById('iqcChartsContainer');
+            const tablesContainer = document.getElementById('iqcTablesContainer');
+            
+            const allAnalytes = Object.keys(analysisResults);
+            let totalIQCSamples = 0;
+            let allIQCNames = new Set();
+            
+            // Check if any analytes have IQC samples
+            allAnalytes.forEach(analyte => {
+                const results = analysisResults[analyte];
+                const iqcSamples = results.data.filter(row => {
+                    if (!row.sample) return false;
+                    const sampleStr = String(row.sample).toUpperCase();
+                    return sampleStr.startsWith('IQC') || sampleStr.startsWith('CONTROL');
+                });
+                if (iqcSamples.length > 0) {
+                    totalIQCSamples += iqcSamples.length;
+                    iqcSamples.forEach(sample => allIQCNames.add(sample.sample));
+                }
+            });
+            
+            if (totalIQCSamples === 0) {
+                chartsContainer.innerHTML = '<div style="padding: 2rem; text-align: center; color: #666;">No IQC or Control samples found in the data.</div>';
+                return;
+            }
+            
+            // Update IQC summary
+            const summaryDiv = document.getElementById('iqcSummary');
+            const uniqueNames = Array.from(allIQCNames).sort();
+            summaryDiv.innerHTML = `
+                <h3>Internal Quality Control (IQC) Analysis</h3>
+                <p>Found ${uniqueNames.length} unique IQC sample type(s): <strong>${uniqueNames.join(', ')}</strong></p>
+                <p>This section shows IQC analysis for each analyte individually, with mean ± SD calculated for duplicate samples.</p>
+            `;
+            
+            // Process each analyte separately
+            allAnalytes.forEach(analyte => {
+                const results = analysisResults[analyte];
+                const iqcSamples = results.data.filter(row => {
+                    if (!row.sample) return false;
+                    const sampleStr = String(row.sample).toUpperCase();
+                    return sampleStr.startsWith('IQC') || sampleStr.startsWith('CONTROL');
+                });
+                
+                if (iqcSamples.length === 0) return;
+                
+                // Group by sample name and calculate statistics
+                const iqcGroups = new Map();
+                iqcSamples.forEach(sample => {
+                    const sampleName = sample.sample;
+                    if (!iqcGroups.has(sampleName)) {
+                        iqcGroups.set(sampleName, []);
+                    }
+                    iqcGroups.get(sampleName).push(sample);
+                });
+                
+                // Calculate mean and SD for each group
+                const iqcStats = [];
+                iqcGroups.forEach((samples, sampleName) => {
+                    const validConcs = samples
+                        .map(s => s.finalConc)
+                        .filter(c => c !== null && c !== undefined && isFinite(c));
+                    
+                    let mean = null;
+                    let sd = null;
+                    let cv = null;
+                    
+                    if (validConcs.length > 0) {
+                        mean = validConcs.reduce((sum, c) => sum + c, 0) / validConcs.length;
+                        if (validConcs.length > 1) {
+                            const variance = validConcs.reduce((sum, c) => sum + Math.pow(c - mean, 2), 0) / (validConcs.length - 1);
+                            sd = Math.sqrt(variance);
+                            cv = mean !== 0 ? (sd / mean) * 100 : null;
+                        }
+                    }
+                    
+                    // Collect all unique locations for this sample group
+                    const locations = [...new Set(samples.map(s => s.location || '').filter(loc => loc !== ''))];
+                    const locationStr = locations.length > 0 ? locations.join(', ') : 'N/A';
+                    
+                    iqcStats.push({
+                        sampleName: sampleName,
+                        samples: samples,
+                        n: samples.length,
+                        mean: mean,
+                        sd: sd,
+                        cv: cv,
+                        location: locationStr
+                    });
+                });
+                
+                // Create analyte section
+                const analyteSection = document.createElement('div');
+                analyteSection.style.marginBottom = '3rem';
+                analyteSection.style.padding = '1rem';
+                analyteSection.style.backgroundColor = '#f8f9fa';
+                analyteSection.style.borderRadius = '8px';
+                analyteSection.style.border = '1px solid #e0e0e0';
+                
+                const analyteTitle = document.createElement('h4');
+                analyteTitle.textContent = `${analyte} - IQC Analysis`;
+                analyteTitle.style.marginBottom = '1rem';
+                analyteTitle.style.color = '#333';
+                analyteSection.appendChild(analyteTitle);
+                
+                // Create data table for this analyte
+                const table = document.createElement('table');
+                table.style.width = '100%';
+                table.style.borderCollapse = 'collapse';
+                table.style.backgroundColor = 'white';
+                table.style.marginBottom = '1rem';
+                
+                // Table header
+                const headerRow = document.createElement('tr');
+                headerRow.style.backgroundColor = '#667eea';
+                headerRow.style.color = 'white';
+                
+                const headers = ['Sample', 'n', 'Mean (pg/ml)', 'SD (pg/ml)', 'CV (%)', 'Location'];
+                headers.forEach(headerText => {
+                    const th = document.createElement('th');
+                    th.textContent = headerText;
+                    th.style.border = '1px solid #ddd';
+                    th.style.padding = '10px';
+                    th.style.textAlign = 'center';
+                    th.style.fontWeight = 'bold';
+                    headerRow.appendChild(th);
+                });
+                table.appendChild(headerRow);
+                
+                // Data rows
+                iqcStats.forEach(stat => {
+                    const row = document.createElement('tr');
+                    row.style.backgroundColor = 'white';
+                    
+                    // Sample name
+                    const nameCell = document.createElement('td');
+                    nameCell.textContent = stat.sampleName;
+                    nameCell.style.border = '1px solid #ddd';
+                    nameCell.style.padding = '8px';
+                    nameCell.style.fontWeight = 'bold';
+                    row.appendChild(nameCell);
+                    
+                    // n (sample count)
+                    const nCell = document.createElement('td');
+                    nCell.textContent = stat.n;
+                    nCell.style.border = '1px solid #ddd';
+                    nCell.style.padding = '8px';
+                    nCell.style.textAlign = 'center';
+                    row.appendChild(nCell);
+                    
+                    // Mean
+                    const meanCell = document.createElement('td');
+                    meanCell.textContent = stat.mean !== null ? formatNumber(stat.mean) : 'N/A';
+                    meanCell.style.border = '1px solid #ddd';
+                    meanCell.style.padding = '8px';
+                    meanCell.style.textAlign = 'right';
+                    row.appendChild(meanCell);
+                    
+                    // SD
+                    const sdCell = document.createElement('td');
+                    sdCell.textContent = stat.sd !== null ? formatNumber(stat.sd) : (stat.n > 1 ? 'N/A' : '-');
+                    sdCell.style.border = '1px solid #ddd';
+                    sdCell.style.padding = '8px';
+                    sdCell.style.textAlign = 'right';
+                    row.appendChild(sdCell);
+                    
+                    // CV
+                    const cvCell = document.createElement('td');
+                    cvCell.textContent = stat.cv !== null ? `${stat.cv.toFixed(1)}%` : (stat.n > 1 ? 'N/A' : '-');
+                    cvCell.style.border = '1px solid #ddd';
+                    cvCell.style.padding = '8px';
+                    cvCell.style.textAlign = 'right';
+                    // Color code CV
+                    if (stat.cv !== null) {
+                        if (stat.cv > 20) {
+                            cvCell.style.backgroundColor = '#f8d7da';
+                            cvCell.title = 'High variability (CV > 20%)';
+                        } else if (stat.cv > 15) {
+                            cvCell.style.backgroundColor = '#fff3cd';
+                            cvCell.title = 'Moderate variability (CV > 15%)';
+                        } else {
+                            cvCell.style.backgroundColor = '#d4edda';
+                            cvCell.title = 'Good reproducibility (CV ≤ 15%)';
+                        }
+                    }
+                    row.appendChild(cvCell);
+                    
+                    // Location
+                    const locationCell = document.createElement('td');
+                    locationCell.textContent = stat.location || 'N/A';
+                    locationCell.style.border = '1px solid #ddd';
+                    locationCell.style.padding = '8px';
+                    locationCell.style.textAlign = 'center';
+                    row.appendChild(locationCell);
+                    
+                    table.appendChild(row);
+                });
+                
+                analyteSection.appendChild(table);
+                
+                // Create separate charts for each IQC control level
+                if (iqcStats.length > 0) {
+                    // Function to get color based on control number
+                    function getControlColor(sampleName) {
+                        const upperName = sampleName.toUpperCase();
+                        if (upperName.includes('1')) return '#FF6B6B'; // Red for level 1
+                        if (upperName.includes('2')) return '#4ECDC4'; // Blue for level 2  
+                        if (upperName.includes('3')) return '#FFE66D'; // Yellow for level 3
+                        return '#95A5A6'; // Gray for others
+                    }
+                    
+                    // Create horizontal container for all IQC charts
+                    const chartsRow = document.createElement('div');
+                    chartsRow.style.display = 'flex';
+                    chartsRow.style.gap = '1rem';
+                    chartsRow.style.marginTop = '1rem';
+                    chartsRow.style.flexWrap = 'wrap';
+                    
+                    // Create individual chart for each IQC type
+                    iqcStats.forEach((stat, statIndex) => {
+                        if (stat.mean !== null) {
+                            const chartDiv = document.createElement('div');
+                            chartDiv.className = 'chart-container';
+                            chartDiv.style.flex = '1';
+                            chartDiv.style.minWidth = '300px';
+                            chartDiv.style.height = '350px';
+                            chartDiv.style.backgroundColor = 'white';
+                            chartDiv.style.border = '1px solid #e0e0e0';
+                            chartDiv.style.borderRadius = '5px';
+                            chartDiv.style.padding = '10px';
+                            
+                            const chartTitle = document.createElement('h5');
+                            chartTitle.textContent = `${stat.sampleName} - Individual Analysis`;
+                            chartTitle.style.textAlign = 'center';
+                            chartTitle.style.marginBottom = '10px';
+                            chartTitle.style.color = '#333';
+                            chartDiv.appendChild(chartTitle);
+                            
+                            const canvas = document.createElement('canvas');
+                            chartDiv.appendChild(canvas);
+                            chartsRow.appendChild(chartDiv);
+                            
+                            const color = getControlColor(stat.sampleName);
+                            const validConcs = stat.samples
+                                .map(s => s.finalConc)
+                                .filter(c => c !== null && c !== undefined && isFinite(c));
+                            
+                            if (validConcs.length > 0) {
+                                const datasets = [];
+                                
+                                // Create scatter points for individual measurements - vertically aligned with slight jitter
+                                const scatterData = validConcs.map((conc, idx) => ({
+                                    x: 1 + (Math.random() - 0.5) * 0.1, // Slight horizontal jitter to prevent complete overlap
+                                    y: conc
+                                }));
+                                
+                                datasets.push({
+                                    label: `${stat.sampleName} Values`,
+                                    data: scatterData,
+                                    backgroundColor: color + '80',
+                                    borderColor: color,
+                                    borderWidth: 2,
+                                    pointRadius: 8,
+                                    pointHoverRadius: 10,
+                                    showLine: false,
+                                    type: 'scatter'
+                                });
+                                
+                                // Add mean line if multiple points
+                                if (validConcs.length > 1) {
+                                    datasets.push({
+                                        label: 'Mean',
+                                        data: [
+                                            {x: 0.3, y: stat.mean},
+                                            {x: 1.7, y: stat.mean}
+                                        ],
+                                        backgroundColor: color,
+                                        borderColor: color,
+                                        borderWidth: 3,
+                                        pointRadius: 0,
+                                        showLine: true,
+                                        tension: 0,
+                                        type: 'line'
+                                    });
+                                    
+                                    // Add 3SD error bands if available
+                                    if (stat.sd !== null && stat.sd > 0) {
+                                        const threeSd = 3 * stat.sd;
+                                        
+                                        // Upper 3SD line
+                                        datasets.push({
+                                            label: '+3SD',
+                                            data: [
+                                                {x: 0.3, y: stat.mean + threeSd},
+                                                {x: 1.7, y: stat.mean + threeSd}
+                                            ],
+                                            backgroundColor: 'transparent',
+                                            borderColor: '#dc3545', // Red color for limits
+                                            borderWidth: 2,
+                                            borderDash: [8, 4],
+                                            pointRadius: 0,
+                                            showLine: true,
+                                            tension: 0,
+                                            type: 'line'
+                                        });
+                                        
+                                        // Lower 3SD line
+                                        datasets.push({
+                                            label: '-3SD',
+                                            data: [
+                                                {x: 0.3, y: stat.mean - threeSd},
+                                                {x: 1.7, y: stat.mean - threeSd}
+                                            ],
+                                            backgroundColor: 'transparent',
+                                            borderColor: '#dc3545', // Red color for limits
+                                            borderWidth: 2,
+                                            borderDash: [8, 4],
+                                            pointRadius: 0,
+                                            showLine: true,
+                                            tension: 0,
+                                            type: 'line'
+                                        });
+                                    }
+                                }
+                                
+                                // Calculate appropriate Y-axis range including 3SD bounds
+                                const minVal = Math.min(...validConcs);
+                                const maxVal = Math.max(...validConcs);
+                                
+                                // Include 3SD bounds in the range calculation
+                                let rangeMin = minVal;
+                                let rangeMax = maxVal;
+                                
+                                if (validConcs.length > 1 && stat.sd !== null && stat.sd > 0) {
+                                    const threeSd = 3 * stat.sd;
+                                    rangeMin = Math.min(rangeMin, stat.mean - threeSd);
+                                    rangeMax = Math.max(rangeMax, stat.mean + threeSd);
+                                }
+                                
+                                const range = rangeMax - rangeMin;
+                                const padding = range * 0.1; // 10% padding (reduced since we're already including 3SD)
+                                
+                                const yMin = Math.max(0.01, rangeMin - padding);
+                                const yMax = rangeMax + padding;
+                                
+                                const iqcChart = new Chart(canvas.getContext('2d'), {
+                                    type: 'scatter',
+                                    data: {
+                                        datasets: datasets
+                                    },
+                                    options: {
+                                        responsive: true,
+                                        maintainAspectRatio: false,
+                                        interaction: {
+                                            mode: 'point'
+                                        },
+                                        scales: {
+                                            y: {
+                                                type: 'linear', // Use linear scale for individual controls
+                                                title: {
+                                                    display: true,
+                                                    text: 'Concentration (pg/ml)'
+                                                },
+                                                min: yMin,
+                                                max: yMax,
+                                                ticks: {
+                                                    callback: function(value) {
+                                                        return formatNumber(value);
+                                                    }
+                                                }
+                                            },
+                                            x: {
+                                                type: 'linear',
+                                                title: {
+                                                    display: true,
+                                                    text: 'Control Sample'
+                                                },
+                                                min: 0,
+                                                max: 2,
+                                                ticks: {
+                                                    stepSize: 1,
+                                                    callback: function(value) {
+                                                        return value === 1 ? stat.sampleName : '';
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        plugins: {
+                                            legend: {
+                                                display: true,
+                                                position: 'top'
+                                            },
+                                            title: {
+                                                display: false // Already have title above chart
+                                            },
+                                            tooltip: {
+                                                callbacks: {
+                                                    title: function(context) {
+                                                        return `${stat.sampleName} - Individual Value`;
+                                                    },
+                                                    label: function(context) {
+                                                        return `Concentration: ${formatNumber(context.parsed.y)} pg/ml`;
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                });
+                                
+                                // Add to charts array for export
+                                allCharts.push({
+                                    chart: iqcChart,
+                                    canvas: canvas,
+                                    analyte: analyte,
+                                    filename: `${analyte}_${stat.sampleName}_IQC.png`,
+                                    type: 'iqc_individual'
+                                });
+                            }
+                        }
+                    });
+                    
+                    // Add the horizontal charts row to the analyte section
+                    analyteSection.appendChild(chartsRow);
+                }
+                
+                tablesContainer.appendChild(analyteSection);
+            });
+        }
+
         function generateSummary() {
             const container = document.getElementById('summaryContainer');
             
@@ -2749,10 +3218,13 @@ popt_list_py # This is returned to JavaScript
             container.innerHTML = summaryHTML;
         }
 
-        function generateDownloadableFiles() {
+        async function generateDownloadableFiles() {
             const outputFolder = document.getElementById('outputFolder').value;
             const downloadList = document.getElementById('downloadList');
             // downloadList.innerHTML = ''; // Keep preprocessing files if already added
+
+            // Add charts to export before generating other files
+            await addChartsToExport();
 
             // Add analysis result files, ensuring not to duplicate preprocessing files if names collide
             // Let's ensure preprocessing files are added first if they haven't been.
@@ -2821,6 +3293,19 @@ popt_list_py # This is returned to JavaScript
                 const summaryKey = `${outputFolder}_analysis_summary.txt`; // Added outputFolder prefix
                 generatedFiles[summaryKey] = summaryText;
                 addDownloadItem('Analysis Summary', summaryText, summaryKey);
+                
+                // Add chart download items
+                allCharts.forEach(chartInfo => {
+                    if (chartInfo && chartInfo.filename) {
+                        const chartKey = `${outputFolder}_${chartInfo.filename}`;
+                        if (generatedFiles[chartKey]) {
+                            const displayName = chartInfo.type === 'iqc_comparison' ? 
+                                'IQC - Concentration Comparison Chart' : 
+                                `${chartInfo.analyte} - Standard Curve Chart`;
+                            addDownloadItem(displayName, generatedFiles[chartKey], chartKey);
+                        }
+                    }
+                });
             }
         }
 
@@ -2977,9 +3462,11 @@ popt_list_py # This is returned to JavaScript
             // Find all IQC samples across all analytes
             allAnalytes.forEach(analyte => {
                 const results = analysisResults[analyte];
-                const analyteIQCSamples = results.data.filter(row => 
-                    row.sample && String(row.sample).startsWith('IQC')
-                );
+                const analyteIQCSamples = results.data.filter(row => {
+                    if (!row.sample) return false;
+                    const sampleStr = String(row.sample).toUpperCase();
+                    return sampleStr.startsWith('IQC') || sampleStr.startsWith('CONTROL');
+                });
                 
                 if (analyteIQCSamples.length > 0) {
                     hasIQCSamples = true;
@@ -3216,7 +3703,14 @@ popt_list_py # This is returned to JavaScript
                     // Add all generated files to ZIP, potentially in a folder
                     const zipFolder = zip.folder(outputFolderForZip);
 
+                    console.log('Adding files to ZIP:', Object.keys(generatedFiles));
                     for (const [filename, content] of Object.entries(generatedFiles)) {
+                        console.log(`Adding to ZIP: ${filename}`, {
+                            type: typeof content,
+                            isUint8Array: content instanceof Uint8Array,
+                            size: content.length || content.size,
+                            isPNG: filename.endsWith('.png')
+                        });
                         zipFolder.file(filename, content);
                     }
                     
