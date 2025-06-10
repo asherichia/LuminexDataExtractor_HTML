@@ -338,98 +338,79 @@
             // Wait for charts to be ready
             await new Promise(resolve => setTimeout(resolve, 1000));
             
-            // Filter charts to export standard curves and efficiency charts (not IQC charts)
-            const chartsToExport = allCharts.filter(chart => chart.type === 'standard_curve' || chart.type === 'efficiency');
-            console.log(`Filtered to ${chartsToExport.length} charts for export (standard curves and efficiency charts)`);
+            // Group charts by analyte for combining standard curve + efficiency
+            const standardCurveCharts = allCharts.filter(chart => chart.type === 'standard_curve');
+            const efficiencyCharts = allCharts.filter(chart => chart.type === 'efficiency');
             
-            // Process charts sequentially to ensure proper timing
-            for (let i = 0; i < chartsToExport.length; i++) {
-                const chartInfo = chartsToExport[i];
-                console.log(`Processing chart ${i + 1}/${chartsToExport.length}: ${chartInfo.filename} (${chartInfo.type})`);
+            console.log(`Found ${standardCurveCharts.length} standard curves and ${efficiencyCharts.length} efficiency charts`);
+            
+            // Process analytes to create combined charts
+            for (let i = 0; i < standardCurveCharts.length; i++) {
+                const standardChart = standardCurveCharts[i];
+                const efficiencyChart = efficiencyCharts.find(ec => ec.analyte === standardChart.analyte);
                 
-                if (!chartInfo || !chartInfo.canvas || !chartInfo.filename) {
-                    console.error(`❌ Invalid chart info for ${chartInfo?.filename || 'unknown'}`);
+                console.log(`Processing combined chart ${i + 1}/${standardCurveCharts.length}: ${standardChart.analyte}`);
+                
+                if (!standardChart || !standardChart.canvas || !standardChart.filename) {
+                    console.error(`❌ Invalid standard chart info for ${standardChart?.analyte || 'unknown'}`);
                     continue;
                 }
                 
+                if (!efficiencyChart || !efficiencyChart.canvas) {
+                    console.warn(`⚠️ No efficiency chart found for ${standardChart.analyte}, exporting standard curve only`);
+                }
+                
                 try {
-                    // Charts export without tab switching - less disruptive to user
+                    // Create combined canvas with both charts side by side
+                    const combinedCanvas = document.createElement('canvas');
+                    const ctx = combinedCanvas.getContext('2d');
                     
-                    // Check canvas status
-                    const canvasInDOM = document.contains(chartInfo.canvas);
-                    if (!canvasInDOM) {
-                        console.error(`❌ Canvas not in DOM for ${chartInfo.filename}`);
-                        continue;
+                    // Set combined canvas size (2x width for side by side)
+                    const chartWidth = standardChart.canvas.width || 1080;
+                    const chartHeight = standardChart.canvas.height || 400;
+                    combinedCanvas.width = chartWidth * 2; // Side by side
+                    combinedCanvas.height = chartHeight;
+                    
+                    // Fill with white background
+                    ctx.fillStyle = 'white';
+                    ctx.fillRect(0, 0, combinedCanvas.width, combinedCanvas.height);
+                    
+                    // Draw standard curve chart on the left
+                    if (standardChart.canvas.width > 0 && standardChart.canvas.height > 0) {
+                        ctx.drawImage(standardChart.canvas, 0, 0);
                     }
                     
-                    // If canvas has lost dimensions, force a complete refresh
-                    if (chartInfo.canvas.width === 0 || chartInfo.canvas.height === 0) {
-                        console.warn(`Canvas lost dimensions for ${chartInfo.filename}, forcing complete refresh...`);
-                        
-                        // Destroy and recreate the chart
-                        if (chartInfo.chart && typeof chartInfo.chart.destroy === 'function') {
-                            chartInfo.chart.destroy();
-                        }
-                        
-                        // Set canvas dimensions explicitly
-                        chartInfo.canvas.width = 1080;
-                        chartInfo.canvas.height = 400;
-                        chartInfo.canvas.style.width = '1080px';
-                        chartInfo.canvas.style.height = '400px';
-                        
-                        // Recreate Chart.js instance with same configuration
-                        const ctx = chartInfo.canvas.getContext('2d');
-                        console.log(`Recreating chart for export: ${chartInfo.filename}`);
-                        
-                        // We'll need to skip this chart for now since we don't have the original data
-                        console.warn(`⚠️ Skipping chart with lost dimensions: ${chartInfo.filename}`);
-                        continue;
-                    }
-                    
-                    // Force chart to update/render before export with multiple attempts
-                    if (chartInfo.chart && typeof chartInfo.chart.update === 'function') {
-                        // Multiple resize attempts
-                        for (let attempt = 0; attempt < 3; attempt++) {
-                            chartInfo.chart.update('none');
-                            chartInfo.chart.resize();
-                            if (typeof chartInfo.chart.render === 'function') {
-                                chartInfo.chart.render();
-                            }
-                            await new Promise(resolve => setTimeout(resolve, 300));
-                            
-                            // Check if dimensions are now correct
-                            if (chartInfo.canvas.width > 0 && chartInfo.canvas.height > 0) {
-                                console.log(`Chart resize successful on attempt ${attempt + 1}: ${chartInfo.canvas.width}x${chartInfo.canvas.height}`);
-                                break;
-                            }
-                        }
-                    }
-                    
-                    // Final check and manual dimension setting if still 0x0
-                    if (chartInfo.canvas.width === 0 || chartInfo.canvas.height === 0) {
-                        console.warn(`Chart still has 0 dimensions, forcing manual resize...`);
-                        chartInfo.canvas.width = 1080;
-                        chartInfo.canvas.height = 400;
-                        if (chartInfo.chart && typeof chartInfo.chart.resize === 'function') {
-                            chartInfo.chart.resize();
-                            if (typeof chartInfo.chart.render === 'function') {
-                                chartInfo.chart.render();
-                            }
-                        }
-                        await new Promise(resolve => setTimeout(resolve, 500));
-                    }
-                    
-                    const imageBytes = await exportChartAsImage(chartInfo);
-                    
-                    if (imageBytes && (imageBytes.size > 0 || imageBytes.length > 0)) {
-                        const filename = `${outputFolder}_${chartInfo.filename}`;
-                        generatedFiles[filename] = imageBytes;
-                        console.log(`✅ Exported: ${filename} (${imageBytes.size || imageBytes.length} bytes)`);
+                    // Draw efficiency chart on the right (if exists)
+                    if (efficiencyChart && efficiencyChart.canvas.width > 0 && efficiencyChart.canvas.height > 0) {
+                        ctx.drawImage(efficiencyChart.canvas, chartWidth, 0);
+                        console.log(`✅ Combined ${standardChart.analyte} standard curve + efficiency chart`);
                     } else {
-                        console.warn(`⚠️ Failed to export: ${chartInfo.filename}`);
+                        console.log(`✅ Exported ${standardChart.analyte} standard curve only (no efficiency chart)`);
                     }
+                    
+                    // Export combined chart as blob
+                    const imageBytes = await new Promise(resolve => {
+                        combinedCanvas.toBlob(blob => {
+                            if (blob) {
+                                console.log(`📄 Generated combined image blob for ${standardChart.analyte}: ${(blob.size / 1024).toFixed(1)}KB`);
+                                resolve(blob);
+                            } else {
+                                console.error(`❌ Failed to generate combined blob for ${standardChart.analyte}`);
+                                resolve(null);
+                            }
+                        }, 'image/png');
+                    });
+                    
+                    if (imageBytes) {
+                        const filename = `${outputFolder}_${standardChart.analyte}_combined_chart.png`;
+                        generatedFiles[filename] = imageBytes;
+                        console.log(`✅ Successfully added combined chart for ${standardChart.analyte} as ${filename}`);
+                    } else {
+                        console.error(`❌ Failed to generate combined image for ${standardChart.analyte}`);
+                    }
+                    
                 } catch (error) {
-                    console.warn(`⚠️ Error exporting ${chartInfo.filename}: ${error.message}`);
+                    console.error(`❌ Error creating combined chart for ${standardChart.analyte}:`, error);
                 }
             }
             
@@ -1739,6 +1720,163 @@
             }
         }
 
+        function analyzeGradientPattern(sortedStandards, currentIndex, analyte) {
+            // Enhanced gradient direction analysis for sigmoidal dose-response curves
+            // Analyzes slope behavior in log-space for better curve characterization
+            
+            const current = sortedStandards[currentIndex];
+            const currentLogConc = Math.log10(current.concentration);
+            const currentMfi = current.correctedMfi;
+            
+            // For the first point, only check basic positivity
+            if (currentIndex === 0) {
+                return {
+                    followsPattern: currentMfi > 0,
+                    reason: currentMfi <= 0 ? 'Negative or zero MFI at lowest concentration' : 'OK'
+                };
+            }
+            
+            const prev = sortedStandards[currentIndex - 1];
+            const prevLogConc = Math.log10(prev.concentration);
+            const prevMfi = prev.correctedMfi;
+            
+            // Calculate slope in log-space (more appropriate for sigmoidal curves)
+            const logConcDiff = currentLogConc - prevLogConc;
+            const mfiDiff = currentMfi - prevMfi;
+            const slope = logConcDiff !== 0 ? mfiDiff / logConcDiff : 0;
+            
+            // Enhanced drop threshold: reduced from 50% to 25% for more sensitivity
+            const dropThreshold = 0.25; // 25% drop threshold
+            const relativeChange = prevMfi > 0 ? (currentMfi - prevMfi) / prevMfi : 0;
+            
+            // Analyze gradient behavior based on curve position
+            if (currentIndex >= 2) {
+                // For 3+ points, analyze trend consistency
+                const prev2 = sortedStandards[currentIndex - 2];
+                const prev2LogConc = Math.log10(prev2.concentration);
+                const prev2Mfi = prev2.correctedMfi;
+                
+                // Calculate previous slope
+                const prevLogConcDiff = prevLogConc - prev2LogConc;
+                const prevMfiDiff = prevMfi - prev2Mfi;
+                const prevSlope = prevLogConcDiff !== 0 ? prevMfiDiff / prevLogConcDiff : 0;
+                
+                // Determine expected curve behavior
+                const isAscendingRegion = detectAscendingRegion(sortedStandards, currentIndex);
+                const isPlateauRegion = detectPlateauRegion(sortedStandards, currentIndex);
+                
+                if (isAscendingRegion) {
+                    // In ascending portion: slope should be positive or neutral
+                    if (slope < 0 && Math.abs(relativeChange) > dropThreshold) {
+                        return {
+                            followsPattern: false,
+                            reason: `Negative slope in ascending region (${(relativeChange * 100).toFixed(1)}% drop > ${dropThreshold * 100}% threshold)`
+                        };
+                    }
+                } else if (isPlateauRegion) {
+                    // In plateau: allow small variations but flag large negative drops
+                    if (relativeChange < -dropThreshold) {
+                        return {
+                            followsPattern: false,
+                            reason: `Large negative drop in plateau region (${(relativeChange * 100).toFixed(1)}% drop > ${dropThreshold * 100}% threshold)`
+                        };
+                    }
+                } else {
+                    // General case: check for dramatic drops
+                    if (relativeChange < -dropThreshold) {
+                        return {
+                            followsPattern: false,
+                            reason: `Dramatic MFI drop (${(relativeChange * 100).toFixed(1)}% drop > ${dropThreshold * 100}% threshold)`
+                        };
+                    }
+                }
+                
+                // Check for slope direction consistency
+                if (prevSlope > 0 && slope < -prevSlope * 0.5) {
+                    // Slope changed from positive to significantly negative
+                    return {
+                        followsPattern: false,
+                        reason: 'Slope direction reversal violates sigmoidal behavior'
+                    };
+                }
+            } else {
+                // For second point, just check for reasonable progression
+                if (relativeChange < -dropThreshold) {
+                    return {
+                        followsPattern: false,
+                        reason: `Large MFI drop at second point (${(relativeChange * 100).toFixed(1)}% drop)`
+                    };
+                }
+            }
+            
+            return {
+                followsPattern: true,
+                reason: 'Follows expected gradient pattern'
+            };
+        }
+        
+        function detectAscendingRegion(sortedStandards, currentIndex) {
+            // Detect if we're in the ascending portion of the sigmoidal curve
+            // Look at the trend over the last few points
+            
+            if (currentIndex < 2) return true; // Assume early points are ascending
+            
+            const lookBack = Math.min(3, currentIndex); // Look at up to 3 previous points
+            let positiveSlopes = 0;
+            let totalSlopes = 0;
+            
+            for (let i = currentIndex - lookBack + 1; i <= currentIndex; i++) {
+                if (i > 0) {
+                    const current = sortedStandards[i];
+                    const prev = sortedStandards[i - 1];
+                    const slope = current.correctedMfi - prev.correctedMfi;
+                    
+                    if (slope > 0) positiveSlopes++;
+                    totalSlopes++;
+                }
+            }
+            
+            // Consider ascending if majority of recent slopes are positive
+            return totalSlopes > 0 && (positiveSlopes / totalSlopes) >= 0.6;
+        }
+        
+        function detectPlateauRegion(sortedStandards, currentIndex) {
+            // Detect if we're in the plateau region (top of the sigmoidal curve)
+            // Characterized by small changes relative to signal magnitude
+            
+            if (currentIndex < 3) return false; // Need more points to detect plateau
+            
+            const lookBack = Math.min(4, currentIndex); // Look at up to 4 previous points
+            let smallChanges = 0;
+            let totalChanges = 0;
+            let avgMfi = 0;
+            
+            // Calculate average MFI and change magnitudes
+            for (let i = currentIndex - lookBack + 1; i <= currentIndex; i++) {
+                avgMfi += sortedStandards[i].correctedMfi;
+                
+                if (i > 0) {
+                    const current = sortedStandards[i];
+                    const prev = sortedStandards[i - 1];
+                    const relativeChange = prev.correctedMfi > 0 ? 
+                        Math.abs(current.correctedMfi - prev.correctedMfi) / prev.correctedMfi : 0;
+                    
+                    if (relativeChange < 0.15) smallChanges++; // Less than 15% change
+                    totalChanges++;
+                }
+            }
+            
+            avgMfi /= lookBack;
+            
+            // Consider plateau if:
+            // 1. Average MFI is reasonably high (not in noise region)
+            // 2. Majority of changes are small
+            const isHighSignal = avgMfi > 50; // Arbitrary threshold for "high" signal
+            const hasSmallChanges = totalChanges > 0 && (smallChanges / totalChanges) >= 0.7;
+            
+            return isHighSignal && hasSmallChanges;
+        }
+
         function filterLowStandards(standards, analyte, bgMean, bgStd) {
             // Filter out low standards that are too close to background noise
             // Uses balanced criteria: excludes standards in noise range but not overly stringent
@@ -1767,19 +1905,14 @@
                 const hasPositiveSignal = correctedMfi > 0;
                 const aboveNoiseThreshold = correctedMfi >= threshold;
                 
-                // 3. Check if this standard follows expected dose-response pattern
+                // 3. Enhanced gradient direction analysis for dose-response pattern
                 let followsPattern = true;
-                if (i >= 2) { // Need at least 3 points to check pattern
-                    // Check if the trend is generally increasing with concentration
-                    const prev2 = sortedStandards[i-2].correctedMfi;
-                    const prev1 = sortedStandards[i-1].correctedMfi;
-                    const current = correctedMfi;
+                if (i >= 1) { // Need at least 2 points for gradient analysis
+                    const patternResult = analyzeGradientPattern(sortedStandards, i, analyte);
+                    followsPattern = patternResult.followsPattern;
                     
-                    // Allow some flexibility - standard can be lower than previous if it's still above threshold
-                    // But if it's dramatically lower (>50% drop), it might not fit the curve
-                    if (current < prev1 * 0.5 && current < prev2 * 0.5) {
-                        followsPattern = false;
-                        console.log(`Standard ${i+1} for ${analyte} appears to deviate from dose-response pattern (MFI: ${current.toFixed(4)})`);
+                    if (!followsPattern) {
+                        console.log(`Standard ${i+1} for ${analyte} violates gradient pattern: ${patternResult.reason} (MFI: ${correctedMfi.toFixed(4)})`);
                     }
                 }
                 
@@ -1814,6 +1947,88 @@
                 firstValidIdx: firstValidIdx,
                 lod: threshold, // Return the threshold used for filtering
                 lowStdFiltered: lowStdFiltered
+            };
+        }
+
+        function filterStandardsByResiduals(standards, analyte, curveParams, residualThreshold = 2.5) {
+            // Residual-based post-fit filtering to catch standards that don't follow the fitted curve
+            if (!curveParams || !standards || standards.length < 4) {
+                return {
+                    filteredStandards: standards,
+                    excludedStandards: [],
+                    residualFiltered: false
+                };
+            }
+            
+            // Calculate predicted MFI for each standard using the fitted curve
+            const residuals = [];
+            const standardsWithResiduals = standards.map(std => {
+                const logConc = Math.log10(std.concentration);
+                const predictedMfi = fourPL(logConc, curveParams);
+                const residual = std.correctedMfi - predictedMfi;
+                residuals.push(residual);
+                
+                return {
+                    ...std,
+                    predictedMfi: predictedMfi,
+                    residual: residual
+                };
+            });
+            
+            // Calculate standardized residuals
+            const meanResidual = residuals.reduce((sum, r) => sum + r, 0) / residuals.length;
+            const residualVariance = residuals.reduce((sum, r) => sum + Math.pow(r - meanResidual, 2), 0) / (residuals.length - 1);
+            const residualStd = Math.sqrt(residualVariance);
+            
+            // Only proceed if we have meaningful residual variation
+            if (residualStd === 0 || !isFinite(residualStd)) {
+                console.log(`No residual variation for ${analyte}, skipping residual filtering`);
+                return {
+                    filteredStandards: standards,
+                    excludedStandards: [],
+                    residualFiltered: false
+                };
+            }
+            
+            // Identify outliers based on standardized residuals
+            const validStandards = [];
+            const excludedStandards = [];
+            
+            standardsWithResiduals.forEach(std => {
+                const standardizedResidual = Math.abs(std.residual - meanResidual) / residualStd;
+                
+                if (standardizedResidual <= residualThreshold) {
+                    validStandards.push(std);
+                } else {
+                    excludedStandards.push({
+                        ...std,
+                        standardizedResidual: standardizedResidual
+                    });
+                    console.log(`Excluding standard for ${analyte} at concentration ${std.concentration}: |standardized residual| = ${standardizedResidual.toFixed(3)} > ${residualThreshold}`);
+                }
+            });
+            
+            // Ensure we still have enough standards for curve fitting
+            if (validStandards.length < 4) {
+                console.log(`Warning: Residual filtering for ${analyte} would leave only ${validStandards.length} standards. Keeping all standards.`);
+                return {
+                    filteredStandards: standards,
+                    excludedStandards: [],
+                    residualFiltered: false
+                };
+            }
+            
+            const residualFiltered = excludedStandards.length > 0;
+            if (residualFiltered) {
+                console.log(`Residual filtering for ${analyte}: excluded ${excludedStandards.length} standards with high residuals (threshold: ${residualThreshold} SD)`);
+            }
+            
+            return {
+                filteredStandards: validStandards,
+                excludedStandards: excludedStandards,
+                residualFiltered: residualFiltered,
+                residualThreshold: residualThreshold,
+                residualStd: residualStd
             };
         }
 
@@ -1930,8 +2145,34 @@
             const yData = filteredStandards.map(s => s.correctedMfi);
             
             // Fit 4PL curve using Pyodide/SciPy
-            const curveParams = await fit4PLCurve(xData, yData); // Await the async call
+            let curveParams = await fit4PLCurve(xData, yData); // Await the async call
             console.log(`4PL fit parameters for ${analyte} (SciPy):`, curveParams);
+            
+            // Apply residual-based post-fit filtering
+            let finalStandards = filteredStandards;
+            let residualFilterResult = null;
+            let residualFiltered = false;
+            
+            if (curveParams && Object.values(curveParams).every(p => isFinite(p))) {
+                residualFilterResult = filterStandardsByResiduals(filteredStandards, analyte, curveParams, 2.5);
+                
+                if (residualFilterResult.residualFiltered) {
+                    // Refit curve with residual-filtered standards
+                    finalStandards = residualFilterResult.filteredStandards;
+                    const refitXData = finalStandards.map(s => Math.log10(s.concentration));
+                    const refitYData = finalStandards.map(s => s.correctedMfi);
+                    
+                    const refitParams = await fit4PLCurve(refitXData, refitYData);
+                    if (refitParams && Object.values(refitParams).every(p => isFinite(p))) {
+                        curveParams = refitParams;
+                        console.log(`Refit 4PL parameters for ${analyte} after residual filtering:`, curveParams);
+                        residualFiltered = true;
+                    } else {
+                        console.warn(`Refit failed for ${analyte}, using original curve parameters`);
+                        finalStandards = filteredStandards; // Revert to original standards
+                    }
+                }
+            }
             
             // Calculate concentrations for all samples
             analyteData.forEach(row => {
@@ -1943,8 +2184,8 @@
                     row.finalConc = row.concentration; // Standards don't get dilution factor
                 }
                 
-                const minStdMfi = Math.min(...filteredStandards.map(s => s.correctedMfi));
-                const maxStdMfi = Math.max(...filteredStandards.map(s => s.correctedMfi));
+                const minStdMfi = Math.min(...finalStandards.map(s => s.correctedMfi));
+                const maxStdMfi = Math.max(...finalStandards.map(s => s.correctedMfi));
                 
                 row.belowMinMfi = (row.correctedMfi < minStdMfi || row.correctedMfi < 0) ? 1 : 0;
                 row.aboveMaxMfi = row.correctedMfi > maxStdMfi ? 1 : 0;
@@ -1986,15 +2227,18 @@
             return {
                 analyte: analyte,
                 data: analyteData,
-                standards: filteredStandards, // Standards used in the fit
+                standards: finalStandards, // Standards used in the final fit (after all filtering)
                 allStandards: standards, // All standards initially identified
                 usableStandards: usableStandards, // Standards after hook detection (if any)
+                filteredStandards: filteredStandards, // Standards after low quality filtering (before residual filtering)
                 curveParams: curveParams,
                 backgroundMean: bgMean,
                 backgroundStd: bgStd,
                 hookDetected: hookDetected,
                 hookConcentration: hookConc,
                 lowStandardsFiltered: lowStdFiltered,
+                residualFiltered: residualFiltered,
+                residualFilterResult: residualFilterResult,
                 firstValidIndex: firstValidIdx,
                 efficiencyData: efficiencyData,
                 lod: lod
@@ -2375,6 +2619,18 @@ popt_list_py # This is returned to JavaScript
                 });
             }
             
+            // Standards excluded due to high residuals
+            const excludedResidualData = [];
+            if (results.residualFiltered && results.residualFilterResult) {
+                results.residualFilterResult.excludedStandards.forEach(std => {
+                    excludedResidualData.push({ 
+                        x: std.concentration, 
+                        y: std.correctedMfi,
+                        standardizedResidual: std.standardizedResidual 
+                    });
+                });
+            }
+            
             // Generate fitted curve points - match Python logic for curve range (lines 524-538)
             const curvePoints = [];
             if (results.standards.length > 0 && results.curveParams && Object.values(results.curveParams).every(p => isFinite(p))) {
@@ -2450,11 +2706,24 @@ popt_list_py # This is returned to JavaScript
                 });
             }
             
-            // Other standards (not used in fit, not explicitly excluded by hook/low)
+            // Standards excluded due to high residuals
+            if (excludedResidualData.length > 0) {
+                datasets.push({
+                    label: 'Standards (Excluded - High Residuals)',
+                    data: excludedResidualData,
+                    backgroundColor: 'rgba(220, 20, 60, 0.6)', // Crimson
+                    borderColor: 'rgba(200, 20, 60, 1)',
+                    pointRadius: 6,
+                    pointStyle: 'rectRounded' // Changed style
+                });
+            }
+            
+            // Other standards (not used in fit, not explicitly excluded by hook/low/residuals)
             const displayedConcs = new Set([
                 ...usedStandardData.map(d => d.x),
                 ...excludedHookData.map(d => d.x),
-                ...excludedLowData.map(d => d.x)
+                ...excludedLowData.map(d => d.x),
+                ...excludedResidualData.map(d => d.x)
             ]);
             const otherStandardData = allStandardData.filter(d => !displayedConcs.has(d.x));
             if (otherStandardData.length > 0) {
@@ -2623,6 +2892,12 @@ popt_list_py # This is returned to JavaScript
                 paramsHTML += `Filtering threshold: ${formatNumber(results.lod)} MFI<br>`;
             }
             
+            if (results.residualFiltered) {
+                paramsHTML += `<br><strong style="color: #dc143c;">Residual-Based Filtering Applied</strong><br>`;
+                paramsHTML += `Excluded ${results.residualFilterResult.excludedStandards.length} standards with |residual| > ${results.residualFilterResult.residualThreshold} SD<br>`;
+                paramsHTML += `Curve refitted with ${results.standards.length} remaining standards<br>`;
+            }
+            
             paramsDiv.innerHTML = paramsHTML;
             graphDiv.appendChild(paramsDiv);
         }
@@ -2762,34 +3037,34 @@ popt_list_py # This is returned to JavaScript
                                 }
                             }
                         }
-                    },
-                    plugins: [{
-                        // Custom plugin to draw 100% reference line without adding to legend
-                        afterDraw: function(chart) {
-                            const ctx = chart.ctx;
-                            const chartArea = chart.chartArea;
-                            const yScale = chart.scales.y;
+                    }
+                },
+                plugins: [{
+                    // Custom plugin to draw 100% reference line without adding to legend
+                    afterDraw: function(chart) {
+                        const ctx = chart.ctx;
+                        const chartArea = chart.chartArea;
+                        const yScale = chart.scales.y;
+                        
+                        // Get y-coordinate for 100%
+                        const y100 = yScale.getPixelForValue(100);
+                        
+                        // Only draw if 100% is within the visible chart area
+                        if (y100 >= chartArea.top && y100 <= chartArea.bottom) {
+                            ctx.save();
+                            ctx.strokeStyle = 'rgba(0, 0, 0, 0.8)';
+                            ctx.lineWidth = 1;
+                            ctx.setLineDash([10, 5]);
                             
-                            // Get y-coordinate for 100%
-                            const y100 = yScale.getPixelForValue(100);
+                            ctx.beginPath();
+                            ctx.moveTo(chartArea.left, y100);
+                            ctx.lineTo(chartArea.right, y100);
+                            ctx.stroke();
                             
-                            // Only draw if 100% is within the visible chart area
-                            if (y100 >= chartArea.top && y100 <= chartArea.bottom) {
-                                ctx.save();
-                                ctx.strokeStyle = 'rgba(0, 0, 0, 0.8)';
-                                ctx.lineWidth = 1;
-                                ctx.setLineDash([10, 5]);
-                                
-                                ctx.beginPath();
-                                ctx.moveTo(chartArea.left, y100);
-                                ctx.lineTo(chartArea.right, y100);
-                                ctx.stroke();
-                                
-                                ctx.restore();
-                            }
+                            ctx.restore();
                         }
-                    }]
-                }
+                    }
+                }]
             });
             
             // Add efficiency chart to global array for axis control and export
@@ -2880,9 +3155,9 @@ popt_list_py # This is returned to JavaScript
                 let subsequentMFI = sortedStandards.slice(peakIdx + 1).map(s => s[correctedCol]);
                 if (subsequentMFI.length > 0) {
                     // Check if any subsequent MFI is significantly lower than peakMfi
-                    // A simple check: if the MFI at the highest concentration is < 90% of peakMFI
+                    // A simple check: if the MFI at the highest concentration is < 95% of peakMFI
                     const lastMfi = sortedStandards[sortedStandards.length - 1][correctedCol];
-                    if (lastMfi < peakMfi * 0.90 && peakMfi > 0) { // 10% drop relative to peak, ensure peak is positive
+                    if (lastMfi < peakMfi * 0.95 && peakMfi > 0) { // 5% drop relative to peak, ensure peak is positive
                         console.log(`Hook effect detected for ${analyte} at concentration ${peakConc}. Peak MFI: ${peakMfi}, Last MFI: ${lastMfi}`);
                         return {
                             sortedStandards,
@@ -3426,6 +3701,10 @@ popt_list_py # This is returned to JavaScript
                 if (results.lowStandardsFiltered && results.lod) {
                     summaryHTML += `- Filtering threshold used: ${formatNumber(results.lod)} MFI<br>`;
                 }
+                summaryHTML += `- Residual-based filtering applied: ${results.residualFiltered ? 'Yes' : 'No'}<br>`;
+                if (results.residualFiltered && results.residualFilterResult) {
+                    summaryHTML += `- Standards excluded by residual filtering: ${results.residualFilterResult.excludedStandards.length}<br>`;
+                }
                 const validEfficiencies = results.efficiencyData.filter(e => isFinite(e.efficiency));
                 if (validEfficiencies.length > 0) {
                     const avgEfficiency = validEfficiencies.reduce((sum, e) => sum + e.efficiency, 0) / validEfficiencies.length;
@@ -3482,16 +3761,25 @@ popt_list_py # This is returned to JavaScript
                     addDownloadItem('IQC Values Export', iqcCSV, iqcKey);
                 }
                 
-                // Add chart download items
-                allCharts.forEach(chartInfo => {
+                // Add combined chart download items
+                const standardCurveCharts = allCharts.filter(chart => chart.type === 'standard_curve');
+                standardCurveCharts.forEach(chartInfo => {
+                    if (chartInfo && chartInfo.analyte) {
+                        const chartKey = `${outputFolder}_${chartInfo.analyte}_combined_chart.png`;
+                        if (generatedFiles[chartKey]) {
+                            const displayName = `${chartInfo.analyte} - Standard Curve & Efficiency Chart`;
+                            addDownloadItem(displayName, generatedFiles[chartKey], chartKey);
+                        }
+                    }
+                });
+                
+                // Add IQC chart download items separately if they exist
+                const iqcCharts = allCharts.filter(chart => chart.type === 'iqc_comparison');
+                iqcCharts.forEach(chartInfo => {
                     if (chartInfo && chartInfo.filename) {
                         const chartKey = `${outputFolder}_${chartInfo.filename}`;
                         if (generatedFiles[chartKey]) {
-                            const displayName = chartInfo.type === 'iqc_comparison' ? 
-                                'IQC - Concentration Comparison Chart' : 
-                                chartInfo.type === 'efficiency' ?
-                                `${chartInfo.analyte} - Efficiency Chart` :
-                                `${chartInfo.analyte} - Standard Curve Chart`;
+                            const displayName = 'IQC - Concentration Comparison Chart';
                             addDownloadItem(displayName, generatedFiles[chartKey], chartKey);
                         }
                     }
