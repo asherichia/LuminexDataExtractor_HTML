@@ -332,30 +332,20 @@
             const outputFolder = document.getElementById('outputFolder').value || "LuminexResults";
             
             console.log(`\n=== STARTING CHART EXPORT ===`);
-            console.log(`Found ${allCharts.length} total charts, ${allCharts.filter(c => c.type === 'standard_curve').length} standard curves to export`);
+            console.log(`Found ${allCharts.length} total charts, ${allCharts.filter(c => c.type === 'standard_curve' || c.type === 'efficiency').length} standard curves and efficiency charts to export`);
             
-            // Ensure graphs tab is active before export
-            switchTab('graphs');
+            // Charts will export from their current tabs - no auto switching visible to user
+            // Wait for charts to be ready
+            await new Promise(resolve => setTimeout(resolve, 1000));
             
-            // Also ensure IQC tab gets activated for IQC charts
-            const hasIQCCharts = allCharts.some(chart => chart.type === 'iqc_individual');
-            if (hasIQCCharts) {
-                switchTab('iqc');
-                await new Promise(resolve => setTimeout(resolve, 1000));
-                switchTab('graphs');
-            }
-            
-            // Wait longer for charts to fully render and tab to be active
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            
-            // Filter charts to export only standard curves (not IQC charts)
-            const chartsToExport = allCharts.filter(chart => chart.type === 'standard_curve');
-            console.log(`Filtered to ${chartsToExport.length} charts for export (standard curves only)`);
+            // Filter charts to export standard curves and efficiency charts (not IQC charts)
+            const chartsToExport = allCharts.filter(chart => chart.type === 'standard_curve' || chart.type === 'efficiency');
+            console.log(`Filtered to ${chartsToExport.length} charts for export (standard curves and efficiency charts)`);
             
             // Process charts sequentially to ensure proper timing
             for (let i = 0; i < chartsToExport.length; i++) {
                 const chartInfo = chartsToExport[i];
-                console.log(`Processing standard curve ${i + 1}/${chartsToExport.length}: ${chartInfo.filename}`);
+                console.log(`Processing chart ${i + 1}/${chartsToExport.length}: ${chartInfo.filename} (${chartInfo.type})`);
                 
                 if (!chartInfo || !chartInfo.canvas || !chartInfo.filename) {
                     console.error(`❌ Invalid chart info for ${chartInfo?.filename || 'unknown'}`);
@@ -363,14 +353,7 @@
                 }
                 
                 try {
-                    // Switch to appropriate tab for this chart type
-                    if (chartInfo.type === 'iqc_individual') {
-                        switchTab('iqc');
-                        await new Promise(resolve => setTimeout(resolve, 500));
-                    } else {
-                        switchTab('graphs');
-                        await new Promise(resolve => setTimeout(resolve, 500));
-                    }
+                    // Charts export without tab switching - less disruptive to user
                     
                     // Check canvas status
                     const canvasInDOM = document.contains(chartInfo.canvas);
@@ -587,9 +570,9 @@
             const btn = document.getElementById('globalYAxisToggle');
             btn.textContent = globalYAxisLog ? 'Y-Axis: Log' : 'Y-Axis: Linear';
             
-            // Update all charts
+            // Update all charts (skip efficiency charts - they should stay linear)
             allCharts.forEach(chartObj => {
-                if (chartObj.chart && chartObj.chart.options && chartObj.chart.options.scales && chartObj.chart.options.scales.y) {
+                if (chartObj.chart && chartObj.chart.options && chartObj.chart.options.scales && chartObj.chart.options.scales.y && chartObj.type !== 'efficiency') {
                     chartObj.chart.options.scales.y.type = globalYAxisLog ? 'logarithmic' : 'linear';
                     chartObj.chart.options.scales.y.title.text = globalYAxisLog ? 'Corrected MFI (Log Scale)' : 'Corrected MFI (Linear Scale)';
                     chartObj.chart.update('none');
@@ -1733,9 +1716,7 @@
                 // Show results section BEFORE generating charts to ensure proper canvas sizing
                 document.getElementById('resultsSection').style.display = 'block';
                 
-                // Ensure the Graphs tab is explicitly active before creating charts
-                switchTab('graphs');
-                
+                // Charts will be created in current tab - no auto switching
                 // Wait for the browser to render the visible section and tab content
                 await new Promise(resolve => setTimeout(resolve, 300));
                 
@@ -2328,15 +2309,20 @@ popt_list_py # This is returned to JavaScript
             graphDiv.className = 'graph-container';
             graphDiv.innerHTML = `<h3>${analyte} Standard Curve Analysis</h3>`;
             
-            // Create canvas container with fixed dimensions
+            // Create charts row for side-by-side layout
+            const chartsRow = document.createElement('div');
+            chartsRow.className = 'charts-row';
+            
+            // Create standard curve canvas container
             const canvasContainer = document.createElement('div');
-            canvasContainer.className = 'chart-container';
+            canvasContainer.className = 'chart-container half-width';
             
             const canvas = document.createElement('canvas');
             const sanitizedAnalyte = analyte.replace(/[^a-zA-Z0-9_-]/g, '_');
             canvas.id = `chart-${sanitizedAnalyte}`;
             canvasContainer.appendChild(canvas);
-            graphDiv.appendChild(canvasContainer);
+            chartsRow.appendChild(canvasContainer);
+            graphDiv.appendChild(chartsRow);
             container.appendChild(graphDiv);
             
             // Wait for DOM insertion to complete before initializing Chart.js
@@ -2609,6 +2595,9 @@ popt_list_py # This is returned to JavaScript
                 }, 500); // Increased delay to ensure proper rendering
             });
             
+            // Create efficiency chart next to standard curve
+            await createEfficiencyChart(analyte, results, chartsRow);
+            
             // Add curve parameters text
             const paramsDiv = document.createElement('div');
             paramsDiv.style.marginTop = '10px';
@@ -2636,6 +2625,212 @@ popt_list_py # This is returned to JavaScript
             
             paramsDiv.innerHTML = paramsHTML;
             graphDiv.appendChild(paramsDiv);
+        }
+
+        async function createEfficiencyChart(analyte, results, chartsRow) {
+            // Only create efficiency chart if we have efficiency data
+            if (!results.efficiencyData || results.efficiencyData.length === 0) {
+                return;
+            }
+            
+            // Filter to only used standards (those that were actually fit)
+            const usedStandardConcs = new Set(results.standards.map(s => s.concentration));
+            const usedEfficiencyData = results.efficiencyData.filter(e => 
+                usedStandardConcs.has(e.concentration) && isFinite(e.efficiency)
+            );
+            
+            if (usedEfficiencyData.length === 0) {
+                return;
+            }
+            
+            // Create efficiency chart container (half width to be side by side)
+            const efficiencyContainer = document.createElement('div');
+            efficiencyContainer.className = 'chart-container half-width';
+            
+            const efficiencyCanvas = document.createElement('canvas');
+            const sanitizedAnalyte = analyte.replace(/[^a-zA-Z0-9_-]/g, '_');
+            efficiencyCanvas.id = `efficiency-chart-${sanitizedAnalyte}`;
+            efficiencyContainer.appendChild(efficiencyCanvas);
+            chartsRow.appendChild(efficiencyContainer);
+            
+            // Wait for DOM insertion
+            await new Promise(resolve => setTimeout(resolve, 50));
+            
+            // Prepare efficiency data for chart
+            const efficiencyPoints = usedEfficiencyData.map(e => ({
+                x: e.concentration,
+                y: e.efficiency
+            }));
+            
+            // Calculate average efficiency line
+            const avgEfficiency = usedEfficiencyData.reduce((sum, e) => sum + e.efficiency, 0) / usedEfficiencyData.length;
+            
+            // Create horizontal line data for average efficiency and 100% reference
+            const minConc = Math.min(...usedEfficiencyData.map(e => e.concentration));
+            const maxConc = Math.max(...usedEfficiencyData.map(e => e.concentration));
+            const avgLineData = [
+                { x: minConc, y: avgEfficiency },
+                { x: maxConc, y: avgEfficiency }
+            ];
+            const hundredPercentLineData = [
+                { x: minConc, y: 100 },
+                { x: maxConc, y: 100 }
+            ];
+            
+            const datasets = [
+                {
+                    label: 'Standard Efficiency (%)',
+                    data: efficiencyPoints,
+                    backgroundColor: 'rgba(75, 192, 192, 0.6)',
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    borderWidth: 2,
+                    pointRadius: 6,
+                    pointHoverRadius: 8,
+                    showLine: false
+                },
+                {
+                    label: `Average Efficiency (${avgEfficiency.toFixed(4)}%)`,
+                    data: avgLineData,
+                    backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                    borderColor: 'rgba(255, 99, 132, 1)',
+                    borderWidth: 2,
+                    borderDash: [5, 5],
+                    pointRadius: 0,
+                    showLine: true,
+                    fill: false,
+                    tension: 0
+                }
+            ];
+            
+            const efficiencyChart = new Chart(efficiencyCanvas.getContext('2d'), {
+                type: 'scatter',
+                data: {
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: {
+                        duration: 0
+                    },
+                    scales: {
+                        x: {
+                            type: globalXAxisLog ? 'logarithmic' : 'linear',
+                            title: {
+                                display: true,
+                                text: globalXAxisLog ? 'Concentration (Log Scale)' : 'Concentration (Linear Scale)'
+                            },
+                            grid: {
+                                display: true
+                            }
+                        },
+                        y: {
+                            type: 'linear',
+                            title: {
+                                display: true,
+                                text: 'Efficiency (%)'
+                            },
+                            beginAtZero: false,
+                            grid: {
+                                display: true
+                            }
+                        }
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: `Standard Curve Efficiency for ${analyte}`
+                        },
+                        legend: {
+                            display: true,
+                            position: 'top'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    if (context.parsed.x !== null) {
+                                        label += `Conc: ${formatNumber(context.parsed.x)}`;
+                                    }
+                                    if (context.parsed.y !== null) {
+                                        label += `, Efficiency: ${formatNumber(context.parsed.y)}%`;
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    },
+                    plugins: [{
+                        // Custom plugin to draw 100% reference line without adding to legend
+                        afterDraw: function(chart) {
+                            const ctx = chart.ctx;
+                            const chartArea = chart.chartArea;
+                            const yScale = chart.scales.y;
+                            
+                            // Get y-coordinate for 100%
+                            const y100 = yScale.getPixelForValue(100);
+                            
+                            // Only draw if 100% is within the visible chart area
+                            if (y100 >= chartArea.top && y100 <= chartArea.bottom) {
+                                ctx.save();
+                                ctx.strokeStyle = 'rgba(0, 0, 0, 0.8)';
+                                ctx.lineWidth = 1;
+                                ctx.setLineDash([10, 5]);
+                                
+                                ctx.beginPath();
+                                ctx.moveTo(chartArea.left, y100);
+                                ctx.lineTo(chartArea.right, y100);
+                                ctx.stroke();
+                                
+                                ctx.restore();
+                            }
+                        }
+                    }]
+                }
+            });
+            
+            // Add efficiency chart to global array for axis control and export
+            const chartInfo = {
+                chart: efficiencyChart,
+                canvas: efficiencyCanvas,
+                analyte: analyte,
+                filename: `${analyte}_efficiency.png`,
+                type: 'efficiency'
+            };
+            allCharts.push(chartInfo);
+            console.log(`Added efficiency chart to allCharts: ${analyte}`, chartInfo);
+            
+            // Force chart to render properly
+            await new Promise(resolve => {
+                setTimeout(() => {
+                    if (efficiencyChart && typeof efficiencyChart.update === 'function') {
+                        efficiencyChart.update('none');
+                    }
+                    if (efficiencyChart && typeof efficiencyChart.resize === 'function') {
+                        efficiencyChart.resize();
+                    }
+                    if (efficiencyChart && typeof efficiencyChart.render === 'function') {
+                        efficiencyChart.render();
+                    }
+                    
+                    console.log(`Efficiency chart rendered for ${analyte}: ${efficiencyCanvas.width}x${efficiencyCanvas.height}`);
+                    
+                    if (efficiencyCanvas.width === 0 || efficiencyCanvas.height === 0) {
+                        console.warn(`Efficiency canvas has 0 dimensions for ${analyte}, attempting additional resize...`);
+                        setTimeout(() => {
+                            if (efficiencyChart && typeof efficiencyChart.resize === 'function') {
+                                efficiencyChart.resize();
+                            }
+                            resolve();
+                        }, 200);
+                    } else {
+                        resolve();
+                    }
+                }, 500);
+            });
         }
 
         function fourPL(logX, params) { // JavaScript version of 4PL for plotting
@@ -3294,6 +3489,8 @@ popt_list_py # This is returned to JavaScript
                         if (generatedFiles[chartKey]) {
                             const displayName = chartInfo.type === 'iqc_comparison' ? 
                                 'IQC - Concentration Comparison Chart' : 
+                                chartInfo.type === 'efficiency' ?
+                                `${chartInfo.analyte} - Efficiency Chart` :
                                 `${chartInfo.analyte} - Standard Curve Chart`;
                             addDownloadItem(displayName, generatedFiles[chartKey], chartKey);
                         }

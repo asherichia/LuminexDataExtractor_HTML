@@ -168,11 +168,32 @@ body {
     display: block;
 }
 
+.charts-row {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
 .chart-container {
     width: 100%;
     height: 400px;
     position: relative;
     overflow: hidden;
+}
+
+.chart-container.half-width {
+    width: 48%;
+    flex: 1;
+}
+
+@media (max-width: 1024px) {
+    .charts-row {
+        flex-direction: column;
+    }
+    
+    .chart-container.half-width {
+        width: 100%;
+    }
 }
 
 .status {
