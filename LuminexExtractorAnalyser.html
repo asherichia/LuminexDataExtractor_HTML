@@ -61,13 +61,20 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>M.A.G.I.C.</h1>
-            <p><strong>MFI Analysis, Graphing, Interpolation, & Calculation</strong></p>
-            <p>Web-based implementation for extracting data from Luminex CSV file exports, with SciPy 4PL curve fitting for standards, detection of hook effect/low quality standards, interpolation, and assigning samples as above/below cut offs for higher dilution testing</p>
+            <div style="display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 1rem;">
+                <div style="flex: 1;">
+                    <h1 style="margin: 0; text-align: center;">M.A.G.I.C.</h1>
+                    <p style="margin: 0 0 1rem 0; font-size: 1.1em; text-align: center;"><strong>MFI Analysis, Graphing, Interpolation, & Calculation</strong></p>
+                    <p style="margin: 0; text-align: center;">Web-based implementation for extracting data from Luminex CSV file exports, with SciPy 4PL curve fitting for standards, detection of hook effect/low quality standards, interpolation, and assigning samples as above/below cut offs for higher dilution testing</p>
+                </div>
+                <div style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border: 2px solid #dee2e6; border-radius: 12px; padding: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-left: 1rem;">
+                    <img src="Logo_MAGIC.png" alt="M.A.G.I.C. Logo" style="height: 150px; display: block;">
+                </div>
+            </div>
         </div>
 
         <div class="section">
-            <h2>📁 File Selection & Output Settings</h2>
+            <h2>🪄 File Selection & Output Settings</h2>
             
             <!-- Main CSV File Input -->
             <div class="form-group">
@@ -79,7 +86,7 @@
                 </label>
                 <div class="file-input">
                     <input type="file" id="csvFile" accept=".csv" />
-                    <p>📄 Click here to select your Luminex CSV file</p>
+                    <p>🔮 Click here to select your Luminex CSV file</p>
                 </div>
             </div>
             
@@ -102,16 +109,16 @@
                             Choose where to save results
                         </small>
                     </label>
-                    <button class="btn" id="selectOutputDir">📂 Choose Directory</button>
+                    <button class="btn" id="selectOutputDir">🔮 Choose Directory</button>
                     <p id="selectedDirPath" style="margin-top: 0.5rem; font-size: 0.9rem; color: #666;">
-                        💡 <em>No custom directory selected - files will download to your default Downloads folder</em>
+                        🪄 <em>No custom directory selected - files will download to your default Downloads folder</em>
                     </p>
                 </div>
             </div>
         </div>
 
         <div class="section">
-            <h2>🔄 File Preprocessing</h2>
+            <h2>✨ File Preprocessing</h2>
             <p style="color: #666; margin-bottom: 1.5rem;">Configure how the Luminex CSV file should be processed and validated.</p>
             
             <div class="grid">
@@ -141,7 +148,7 @@
                 <div class="form-group">
                     <div class="checkbox-group" style="margin-top: 1.5rem;">
                         <input type="checkbox" id="fullPlate" checked />
-                        <label for="fullPlate">🧪 <strong>Process Full Plate</strong></label>
+                        <label for="fullPlate">🔮 <strong>Process Full Plate</strong></label>
                         <small style="display: block; color: #666; margin-top: 0.25rem; margin-left: 1.5rem;">
                             Process all wells in the plate (uncheck to specify custom well count)
                         </small>
@@ -150,16 +157,16 @@
             </div>
             
             <button class="btn" id="preprocessBtn" disabled style="margin-top: 1rem;">
-                🚀 Start Preprocessing
+                🪄 Start Preprocessing
             </button>
         </div>
 
         <div class="section">
-            <h2>⚙️ Analysis Configuration</h2>
+            <h2>🔮 Analysis Configuration</h2>
             
             <!-- Optional Configuration Files -->
             <div style="background: #f8f9fa; border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem;">
-                <h3 style="margin-bottom: 1rem; color: #495057; font-size: 1.1rem;">📊 Optional Configuration Files</h3>
+                <h3 style="margin-bottom: 1rem; color: #495057; font-size: 1.1rem;">🔮 Optional Configuration Files</h3>
                 <div class="grid">
                     <div class="form-group">
                         <label for="standardsFile">
@@ -170,7 +177,7 @@
                         </label>
                         <div class="file-input">
                             <input type="file" id="standardsFile" accept=".csv" />
-                            <p id="standardsFileStatus">📋 Click to select standards file (optional)</p>
+                            <p id="standardsFileStatus">🔮 Click to select standards file (optional)</p>
                         </div>
                     </div>
                     
@@ -183,7 +190,7 @@
                         </label>
                         <div class="file-input">
                             <input type="file" id="cutoffFile" accept=".csv" />
-                            <p id="cutoffFileStatus">✂️ Click to select cutoff file (optional)</p>
+                            <p id="cutoffFileStatus">✨ Click to select cutoff file (optional)</p>
                         </div>
                     </div>
                 </div>
@@ -191,7 +198,7 @@
             
             <!-- Analysis Parameters -->
             <div style="background: #fff; border: 1px solid #e9ecef; border-radius: 8px; padding: 1rem;">
-                <h3 style="margin-bottom: 1rem; color: #495057; font-size: 1.1rem;">🔧 Analysis Parameters</h3>
+                <h3 style="margin-bottom: 1rem; color: #495057; font-size: 1.1rem;">✨ Analysis Parameters</h3>
                 <div class="grid">
                 
                     <div class="form-group">
@@ -218,7 +225,7 @@
                         <label style="font-weight: 600; margin-bottom: 0.75rem; display: block;">Analysis Options</label>
                         <div class="checkbox-group" style="margin-bottom: 0.5rem;">
                             <input type="checkbox" id="detectHook" checked />
-                            <label for="detectHook">🔍 Detect Hook Effect</label>
+                            <label for="detectHook">🪄 Detect Hook Effect</label>
                             <small style="display: block; color: #666; margin-top: 0.25rem; margin-left: 1.5rem;">
                                 Identify high-dose inhibition in immunoassays
                             </small>
@@ -226,7 +233,7 @@
                         
                         <div class="checkbox-group">
                             <input type="checkbox" id="filterLowStd" />
-                            <label for="filterLowStd">🧹 Filter Low Standards</label>
+                            <label for="filterLowStd">✨ Filter Low Standards</label>
                             <small style="display: block; color: #666; margin-top: 0.25rem; margin-left: 1.5rem;">
                                 Remove standards too close to background or breaking dose-response pattern
                             </small>
@@ -240,15 +247,15 @@
                 <div id="validationDetails"></div>
             </div>
             
-            <button class="btn" id="validateOptionsBtn" style="margin-top: 1rem;" disabled>Validate Analysis Setup</button>
+            <button class="btn" id="validateOptionsBtn" style="margin-top: 1rem;" disabled>🔍 Validate Analysis Setup</button>
         </div>
 
         <div class="section" id="plateLayoutSection">
-            <h2>Plate Layout Assignment (Optional)</h2>
+            <h2>🧙‍♂️ Plate Layout Assignment (Optional)</h2>
             <p style="color: #666; margin-bottom: 1.5rem;">Import a plate layout file to assign Sample IDs to well positions. This will be matched against the processed Luminex data.</p>
             
             <div id="plateLayoutPreProcessingNote" style="background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 5px; padding: 1rem; margin-bottom: 1rem; color: #856404;">
-                <strong>📋 Note:</strong> You can upload your plate layout file now, but full validation will be performed after the Luminex data is processed above.
+                <strong>✨ Note:</strong> You can upload your plate layout file now, but full validation will be performed after the Luminex data is processed above.
             </div>
             
             <div style="background: #f8f9fa; border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem;">
@@ -261,7 +268,7 @@
                     </label>
                     <div class="file-input">
                         <input type="file" id="plateLayoutFile" accept=".csv" />
-                        <p id="plateLayoutFileStatus">🧬 Click to select plate layout file (optional)</p>
+                        <p id="plateLayoutFileStatus">🪄 Click to select plate layout file (optional)</p>
                     </div>
                 </div>
                 
@@ -278,7 +285,7 @@
         </div>
 
         <div class="section">
-            <h2>Analyte Selection</h2>
+            <h2>🎯 Analyte Selection</h2>
             <div class="form-group">
                 <label for="analyteSelect">Select Analyte:</label>
                 <select id="analyteSelect" disabled>
@@ -286,11 +293,11 @@
                 </select>
             </div>
             
-            <button class="btn" id="runAnalysisBtn" disabled>Run Analysis</button>
+            <button class="btn" id="runAnalysisBtn" disabled>✨ Run Analysis</button>
         </div>
 
         <div class="section" id="progressSection" style="display: none;">
-            <h2>Analysis Progress</h2>
+            <h2>⚡ Analysis Progress</h2>
             <div class="progress-bar">
                 <div class="progress-fill" id="progressFill"></div>
             </div>
@@ -298,14 +305,14 @@
         </div>
 
         <div class="section" id="resultsSection" style="display: none;">
-            <h2>Results</h2>
+            <h2>🌟 Results</h2>
             
             <div class="tab-container">
                 <div class="tab-buttons">
-                    <button class="tab-button active" data-tab="graphs">Graphs</button>
-                    <button class="tab-button" data-tab="data">Data Tables</button>
-                    <button class="tab-button" data-tab="iqc">IQC Analysis</button>
-                    <button class="tab-button" data-tab="summary">Summary</button>
+                    <button class="tab-button active" data-tab="graphs">📈 Graphs</button>
+                    <button class="tab-button" data-tab="data">📋 Data Tables</button>
+                    <button class="tab-button" data-tab="iqc">⚙️ IQC Analysis</button>
+                    <button class="tab-button" data-tab="summary">📜 Summary</button>
                 </div>
                 
                 <div class="tab-content active" id="graphs">
