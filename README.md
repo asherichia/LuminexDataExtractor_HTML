@@ -1,10 +1,10 @@
-# Luminex Analysis Tool
+# M.A.G.I.C. (MFI Analysis, Graphing, Interpolation, & Calculation)
 
 **A fully browser-based web application for analyzing Luminex data files** — including preprocessing, curve fitting, and data visualization. No installation required.
 
 ## 🚀 Overview
 
-The **Luminex Analysis Tool** is a self-contained HTML application that replicates and extends the functionality of a Python-based Luminex analysis pipeline. It includes:
+**M.A.G.I.C.** is a self-contained HTML application that replicates and extends the functionality of a Python-based Luminex analysis pipeline. It includes:
 
 - CSV parsing (raw Luminex exports, standards, cutoffs)
 - Preprocessing of data (handling 96- or 384-well formats)

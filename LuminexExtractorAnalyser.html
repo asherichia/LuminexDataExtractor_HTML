@@ -3,18 +3,66 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Luminex data extractor and analysis tool</title>
+    <title>M.A.G.I.C. (MFI Analysis, Graphing, Interpolation, & Calculation)</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Papa-Parse/5.4.1/papaparse.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
     <script src="https://cdn.jsdelivr.net/pyodide/v0.25.1/full/pyodide.js"></script>
     <link rel="stylesheet" href="styles.css">
+    <style>
+        /* Additional styles for plate layout section */
+        .plate-layout-validation {
+            border-radius: 5px;
+            padding: 1rem;
+            margin-top: 1rem;
+        }
+        
+        .validation-error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        
+        .validation-warning {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+        }
+        
+        .validation-success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        
+        .plate-layout-preview {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            max-height: 200px;
+            overflow-y: auto;
+            padding: 10px;
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+        
+        .conflict-well {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        
+        .missing-well {
+            color: #fd7e14;
+        }
+    </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>Luminex data extractor and analysis tool</h1>
+            <h1>M.A.G.I.C.</h1>
+            <p><strong>MFI Analysis, Graphing, Interpolation, & Calculation</strong></p>
             <p>Web-based implementation for extracting data from Luminex CSV file exports, with SciPy 4PL curve fitting for standards, detection of hook effect/low quality standards, interpolation, and assigning samples as above/below cut offs for higher dilution testing</p>
         </div>
 
@@ -195,8 +243,42 @@
             <button class="btn" id="validateOptionsBtn" style="margin-top: 1rem;" disabled>Validate Analysis Setup</button>
         </div>
 
+        <div class="section" id="plateLayoutSection">
+            <h2>Plate Layout Assignment (Optional)</h2>
+            <p style="color: #666; margin-bottom: 1.5rem;">Import a plate layout file to assign Sample IDs to well positions. This will be matched against the processed Luminex data.</p>
+            
+            <div id="plateLayoutPreProcessingNote" style="background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 5px; padding: 1rem; margin-bottom: 1rem; color: #856404;">
+                <strong>📋 Note:</strong> You can upload your plate layout file now, but full validation will be performed after the Luminex data is processed above.
+            </div>
+            
+            <div style="background: #f8f9fa; border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem;">
+                <div class="form-group">
+                    <label for="plateLayoutFile">
+                        <strong>Plate Layout File</strong>
+                        <small style="display: block; font-weight: normal; color: #666; margin-top: 0.25rem;">
+                            CSV file with Well,Sample_ID format (e.g., A1,C25C00908401)
+                        </small>
+                    </label>
+                    <div class="file-input">
+                        <input type="file" id="plateLayoutFile" accept=".csv" />
+                        <p id="plateLayoutFileStatus">🧬 Click to select plate layout file (optional)</p>
+                    </div>
+                </div>
+                
+                <div id="plateLayoutValidation" style="display: none; margin-top: 1rem;">
+                    <h4>Layout Validation Results:</h4>
+                    <div id="plateLayoutValidationDetails"></div>
+                </div>
+                
+                <div id="plateLayoutPreview" style="display: none; margin-top: 1rem;">
+                    <h4>Plate Layout Preview:</h4>
+                    <div id="plateLayoutPreviewDetails" style="max-height: 200px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; background: white; font-family: monospace; font-size: 12px;"></div>
+                </div>
+            </div>
+        </div>
+
         <div class="section">
-            <h2>4. Analyte Selection</h2>
+            <h2>Analyte Selection</h2>
             <div class="form-group">
                 <label for="analyteSelect">Select Analyte:</label>
                 <select id="analyteSelect" disabled>
@@ -216,7 +298,7 @@
         </div>
 
         <div class="section" id="resultsSection" style="display: none;">
-            <h2>5. Results</h2>
+            <h2>Results</h2>
             
             <div class="tab-container">
                 <div class="tab-buttons">
@@ -260,7 +342,7 @@
         </div>
 
         <div class="section download-section" id="downloadSection">
-            <h2>6. Download Results</h2>
+            <h2>Download Results</h2>
             <div id="downloadList"></div>
             <button class="btn" id="downloadAllBtn">Download All Files as ZIP</button>
         </div>
@@ -276,6 +358,10 @@
         let currentOutputFolder = null;
         let cleanDataFile = null;
         let pyodideInstance = null; // For Pyodide
+        
+        // Plate layout variables
+        let plateLayoutData = null;
+        let plateLayoutValidationResults = null;
         
         // Global chart axis state
         let globalXAxisLog = true;  // Default X-axis to log
@@ -428,7 +514,7 @@
 
         function initializeEventListeners() {
             // Check all required elements exist
-            const requiredElements = ['csvFile', 'preprocessBtn', 'outputFolder', 'plateFormat', 'fullPlate', 'numWells'];
+            const requiredElements = ['csvFile', 'preprocessBtn', 'outputFolder', 'plateFormat', 'fullPlate', 'numWells', 'plateLayoutFile'];
             requiredElements.forEach(id => {
                 const element = document.getElementById(id);
                 console.log(`Element ${id}:`, element ? 'Found' : 'NOT FOUND');
@@ -470,6 +556,19 @@
                 });
             } else {
                 console.error('Cutoff file input not found');
+            }
+            
+            const plateLayoutFile = document.getElementById('plateLayoutFile');
+            if (plateLayoutFile) {
+                plateLayoutFile.addEventListener('change', handlePlateLayoutFile);
+                console.log('Plate layout file listener added');
+                
+                // Add additional reliability by resetting on click
+                plateLayoutFile.addEventListener('click', function() {
+                    this.value = ''; // Reset to ensure change event fires even for same file
+                });
+            } else {
+                console.error('Plate layout file input not found');
             }
             
             // Plate format changes
@@ -563,7 +662,7 @@
         
         function formatNumber(value) {
             if (value === null || value === undefined || !isFinite(value)) {
-                return 'N/A';
+                return '';
             }
             
             const absValue = Math.abs(value);
@@ -580,7 +679,7 @@
         function formatMfiConc(value) {
             // Special formatting for MFI and concentration values - always 4 decimal places
             if (value === null || value === undefined || !isFinite(value)) {
-                return 'N/A';
+                return '';
             }
             
             const absValue = Math.abs(value);
@@ -710,6 +809,54 @@
             }
         }
 
+        function handlePlateLayoutFile(event) {
+            try {
+                const file = event.target.files[0];
+                if (file) {
+                    // Validate file type
+                    if (!file.name.toLowerCase().endsWith('.csv')) {
+                        updateStatus('Error: Plate layout file must be a CSV file', 'error');
+                        document.getElementById('plateLayoutFileStatus').textContent = 'Error: Must be a CSV file';
+                        document.getElementById('plateLayoutFileStatus').style.color = '#dc3545';
+                        return;
+                    }
+                    
+                    updateStatus('Plate layout file selected: ' + file.name, 'info');
+                    document.getElementById('plateLayoutFileStatus').textContent = 'Selected: ' + file.name;
+                    document.getElementById('plateLayoutFileStatus').style.color = '#28a745';
+                    console.log('Plate layout file selected:', file.name, 'Size:', file.size, 'bytes');
+                    
+                    // Parse and validate the plate layout file
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        try {
+                            parsePlateLayoutFile(e.target.result, file.name);
+                        } catch (error) {
+                            console.error('Error parsing plate layout file:', error);
+                            updateStatus('Error parsing plate layout file: ' + error.message, 'error');
+                            document.getElementById('plateLayoutFileStatus').textContent = 'Error parsing file';
+                            document.getElementById('plateLayoutFileStatus').style.color = '#dc3545';
+                        }
+                    };
+                    reader.readAsText(file);
+                } else {
+                    document.getElementById('plateLayoutFileStatus').textContent = 'Click to select plate layout file';
+                    document.getElementById('plateLayoutFileStatus').style.color = '';
+                    
+                    // Clear existing data
+                    plateLayoutData = null;
+                    plateLayoutValidationResults = null;
+                    document.getElementById('plateLayoutValidation').style.display = 'none';
+                    document.getElementById('plateLayoutPreview').style.display = 'none';
+                }
+            } catch (error) {
+                console.error('Error handling plate layout file:', error);
+                updateStatus('Error selecting plate layout file: ' + error.message, 'error');
+                document.getElementById('plateLayoutFileStatus').textContent = 'Error selecting file';
+                document.getElementById('plateLayoutFileStatus').style.color = '#dc3545';
+            }
+        }
+
         function updateWellCount() {
             const plateFormat = document.getElementById('plateFormat').value;
             const wellInput = document.getElementById('numWells');
@@ -738,6 +885,340 @@
             
             // Show progress section
             document.getElementById('progressSection').style.display = 'block';
+        }
+
+        // Normalize well ID format (A01 -> A1, A1 -> A1)
+        function normalizeWellId(wellId) {
+            if (!wellId || typeof wellId !== 'string') return null;
+            
+            // Support both 96-well (A-H) and 384-well (A-P) formats
+            const match = wellId.trim().toUpperCase().match(/^([A-P])(\d{1,2})$/);
+            if (!match) return null;
+            
+            const row = match[1];
+            const col = parseInt(match[2], 10);
+            
+            // Validate column range based on plate format
+            const plateFormatEl = document.getElementById('plateFormat');
+            const plateFormat = plateFormatEl ? plateFormatEl.value : '96-well';
+            
+            if (plateFormat === '96-well') {
+                // 96-well: A-H rows, 1-12 columns
+                if (!'ABCDEFGH'.includes(row) || col < 1 || col > 12) return null;
+            } else {
+                // 384-well: A-P rows, 1-24 columns  
+                if (!'ABCDEFGHIJKLMNOP'.includes(row) || col < 1 || col > 24) return null;
+            }
+            
+            return row + col;
+        }
+
+        function parsePlateLayoutFile(csvContent, filename) {
+            const lines = csvContent.trim().split('\n');
+            const layoutData = {};
+            const errors = [];
+            const warnings = [];
+            
+            console.log('Parsing plate layout file:', filename);
+            console.log('Total lines:', lines.length);
+            
+            // Skip header line if present
+            let startLine = 0;
+            if (lines.length > 0 && lines[0].toLowerCase().includes('well')) {
+                startLine = 1;
+            }
+            
+            for (let i = startLine; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (!line) continue;
+                
+                const parts = line.split(',').map(p => p.trim().replace(/"/g, ''));
+                if (parts.length < 2) {
+                    errors.push(`Line ${i + 1}: Invalid format - expected "Well,Sample_ID"`);
+                    continue;
+                }
+                
+                const rawWell = parts[0];
+                const sampleId = parts[1];
+                
+                if (!sampleId) {
+                    warnings.push(`Line ${i + 1}: Empty sample ID for well ${rawWell}`);
+                    continue;
+                }
+                
+                const normalizedWell = normalizeWellId(rawWell);
+                if (!normalizedWell) {
+                    errors.push(`Line ${i + 1}: Invalid well format "${rawWell}" - expected format like A1, A01, B12`);
+                    continue;
+                }
+                
+                if (layoutData[normalizedWell]) {
+                    warnings.push(`Line ${i + 1}: Duplicate well ${normalizedWell} (was: ${layoutData[normalizedWell]}, now: ${sampleId})`);
+                }
+                
+                layoutData[normalizedWell] = sampleId;
+            }
+            
+            console.log('Parsed layout data:', layoutData);
+            console.log('Errors:', errors);
+            console.log('Warnings:', warnings);
+            
+            // Store the parsed data
+            plateLayoutData = layoutData;
+            
+            // Validate against processed Luminex data if available
+            const validationResults = validatePlateLayout(layoutData, errors, warnings);
+            plateLayoutValidationResults = validationResults;
+            
+            // Update UI
+            displayPlateLayoutResults(validationResults, layoutData);
+            
+            // Apply Sample_IDs to processed data if available
+            if (processedData) {
+                applyPlateLayoutToData();
+                console.log('Plate layout Sample_IDs applied to existing processed data');
+                
+                // Regenerate analysis results if they exist to include Sample_ID
+                if (Object.keys(analysisResults).length > 0) {
+                    console.log('Regenerating analysis results to include Sample_IDs...');
+                    // Clear existing results and regenerate data tables
+                    document.getElementById('dataTablesContainer').innerHTML = '';
+                    Object.keys(analysisResults).forEach(analyte => {
+                        generateAnalyteDataTables(analyte, analysisResults[analyte]);
+                    });
+                }
+            }
+        }
+
+        function validatePlateLayout(layoutData, parseErrors = [], parseWarnings = []) {
+            const errors = [...parseErrors];
+            const warnings = [...parseWarnings];
+            const flags = {
+                conflictingWells: [],
+                missingWells: []
+            };
+            
+            console.log('Validating plate layout...');
+            console.log('Processed data available:', !!processedData);
+            
+            if (!processedData) {
+                warnings.push('Plate layout validation will be completed after Luminex data preprocessing');
+                return { errors, warnings, flags, status: 'partial' };
+            }
+            
+            // Get sample names from processed data
+            const luminexSamples = new Set();
+            const luminexWells = new Set();
+            const sampleWellMap = new Map(); // Map sample names to wells
+            
+            if (processedData && processedData.data && processedData.data.length > 0) {
+                processedData.data.forEach(row => {
+                    if (row.Sample) {
+                        luminexSamples.add(row.Sample);
+                        
+                        // Extract well from Location if available
+                        if (row.Location) {
+                            // Location format is typically like "1(1,A1)" or similar
+                            const wellMatch = row.Location.match(/([A-H]\d{1,2})/);
+                            if (wellMatch) {
+                                const normalizedWell = normalizeWellId(wellMatch[1]);
+                                if (normalizedWell) {
+                                    luminexWells.add(normalizedWell);
+                                    sampleWellMap.set(row.Sample, normalizedWell);
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+            
+            console.log('Luminex samples:', Array.from(luminexSamples));
+            console.log('Luminex wells:', Array.from(luminexWells));
+            
+            // Check for conflicts with Standard/Background/IQC samples
+            Object.entries(layoutData).forEach(([well, sampleId]) => {
+                // Find the Luminex sample that corresponds to this well
+                let luminexSampleInWell = null;
+                for (const [sample, mappedWell] of sampleWellMap) {
+                    if (mappedWell === well) {
+                        luminexSampleInWell = sample;
+                        break;
+                    }
+                }
+                
+                if (luminexSampleInWell) {
+                    const sampleName = luminexSampleInWell.toLowerCase();
+                    if (sampleName.includes('standard') || 
+                        sampleName.includes('background') || 
+                        sampleName.includes('iqc') ||
+                        sampleName.includes('control')) {
+                        flags.conflictingWells.push({
+                            well: well,
+                            plateLayoutSample: sampleId,
+                            luminexSample: luminexSampleInWell
+                        });
+                    }
+                }
+                
+                // Check if well exists in Luminex data (only check once here)
+                if (luminexWells.size > 0 && !luminexWells.has(well)) {
+                    flags.missingWells.push({
+                        well: well,
+                        sampleId: sampleId
+                    });
+                }
+            });
+            
+            // Generate error/warning messages based on flags
+            if (flags.conflictingWells.length > 0) {
+                errors.push(`Found ${flags.conflictingWells.length} wells with conflicting assignments (trying to assign Sample_ID to Standard/Background/IQC wells)`);
+            }
+            
+            if (flags.missingWells.length > 0) {
+                warnings.push(`Found ${flags.missingWells.length} wells in plate layout that were not read by the Luminex machine`);
+            }
+            
+            // Count wells that have matching Luminex data
+            const matchedWells = Object.keys(layoutData).filter(well => luminexWells.has(well));
+            const totalLayoutWells = Object.keys(layoutData).length;
+            
+            // Add success message if we have good matches
+            if (matchedWells.length > 0 && flags.missingWells.length === 0 && flags.conflictingWells.length === 0) {
+                warnings.push(`✓ Successfully matched all ${matchedWells.length} wells between plate layout and Luminex data`);
+            } else if (matchedWells.length > 0) {
+                warnings.push(`Matched ${matchedWells.length}/${totalLayoutWells} wells between plate layout and Luminex data`);
+            }
+            
+            const status = errors.length > 0 ? 'error' : 
+                          (flags.conflictingWells.length > 0 || flags.missingWells.length > 0) ? 'warning' : 'success';
+            
+            return { errors, warnings, flags, status };
+        }
+
+        function displayPlateLayoutResults(validationResults, layoutData) {
+            // Show plate layout section
+            document.getElementById('plateLayoutSection').style.display = 'block';
+            
+            // Display validation results
+            const validationDiv = document.getElementById('plateLayoutValidation');
+            const validationDetails = document.getElementById('plateLayoutValidationDetails');
+            
+            let html = '';
+            
+            if (validationResults.errors.length > 0) {
+                html += '<div style="color: #dc3545; margin-bottom: 10px;"><strong>Errors:</strong><ul>';
+                validationResults.errors.forEach(error => {
+                    html += `<li>${error}</li>`;
+                });
+                html += '</ul></div>';
+            }
+            
+            if (validationResults.warnings.length > 0) {
+                html += '<div style="color: #fd7e14; margin-bottom: 10px;"><strong>Warnings:</strong><ul>';
+                validationResults.warnings.forEach(warning => {
+                    html += `<li>${warning}</li>`;
+                });
+                html += '</ul></div>';
+            }
+            
+            if (validationResults.status === 'success') {
+                html += '<div style="color: #28a745;"><strong>✓ Plate layout validation passed!</strong></div>';
+            }
+            
+            // Show detailed conflicts if any
+            if (validationResults.flags.conflictingWells.length > 0) {
+                html += '<div style="margin-top: 15px;"><strong>Conflicting Wells:</strong><ul style="font-family: monospace; font-size: 12px;">';
+                validationResults.flags.conflictingWells.forEach(conflict => {
+                    html += `<li>${conflict.well}: Plate layout says "${conflict.plateLayoutSample}" but Luminex has "${conflict.luminexSample}"</li>`;
+                });
+                html += '</ul></div>';
+            }
+            
+            if (validationResults.flags.missingWells.length > 0) {
+                html += '<div style="margin-top: 15px;"><strong>Missing Wells (not in Luminex data):</strong><ul style="font-family: monospace; font-size: 12px;">';
+                validationResults.flags.missingWells.forEach(missing => {
+                    html += `<li>${missing.well}: ${missing.sampleId}</li>`;
+                });
+                html += '</ul></div>';
+            }
+            
+            validationDetails.innerHTML = html;
+            validationDiv.style.display = 'block';
+            
+            // Display layout preview
+            const previewDiv = document.getElementById('plateLayoutPreview');
+            const previewDetails = document.getElementById('plateLayoutPreviewDetails');
+            
+            let previewHtml = `<div style="margin-bottom: 10px;"><strong>Total assignments: ${Object.keys(layoutData).length}</strong></div>`;
+            
+            Object.entries(layoutData)
+                .sort(([a], [b]) => a.localeCompare(b))
+                .forEach(([well, sampleId]) => {
+                    const isConflicting = validationResults.flags.conflictingWells.some(c => c.well === well);
+                    const isMissing = validationResults.flags.missingWells.some(m => m.well === well);
+                    
+                    let cssClass = '';
+                    if (isConflicting) cssClass = 'conflict-well';
+                    else if (isMissing) cssClass = 'missing-well';
+                    
+                    previewHtml += `<div class="${cssClass}">${well}: ${sampleId}</div>`;
+                });
+            
+            previewDetails.innerHTML = previewHtml;
+            previewDiv.style.display = 'block';
+            
+            console.log('Plate layout results displayed');
+        }
+
+        function applyPlateLayoutToData() {
+            if (!plateLayoutData || !processedData) {
+                console.log('Cannot apply plate layout - missing data');
+                return;
+            }
+            
+            console.log('Applying plate layout Sample_IDs to processed data...');
+            
+            // Add Sample_ID to headers if not already present
+            if (!processedData.headers.includes('Sample_ID')) {
+                // Insert Sample_ID after Location column for better organization
+                const locationIndex = processedData.headers.indexOf('Location');
+                const insertIndex = locationIndex >= 0 ? locationIndex + 1 : 2; // Default to position 2 if Location not found
+                processedData.headers.splice(insertIndex, 0, 'Sample_ID');
+            }
+            
+            // Add Sample_ID column to processed data based on well positions
+            processedData.data.forEach(row => {
+                if (row.Location) {
+                    const wellMatch = row.Location.match(/([A-H]\d{1,2})/);
+                    if (wellMatch) {
+                        const normalizedWell = normalizeWellId(wellMatch[1]);
+                        if (normalizedWell && plateLayoutData[normalizedWell]) {
+                            row.Sample_ID = plateLayoutData[normalizedWell];
+                        } else {
+                            row.Sample_ID = ''; // Empty if no match
+                        }
+                    } else {
+                        row.Sample_ID = ''; // Empty if no well match
+                    }
+                } else {
+                    row.Sample_ID = ''; // Empty if no Location
+                }
+            });
+            
+            console.log('Plate layout Sample_IDs applied to processed data and headers');
+            
+            // Regenerate the clean data CSV with Sample_ID column
+            const outputFolder = document.getElementById('outputFolder').value;
+            const cleanCSV = processedDataToCSV(processedData);
+            generatedFiles[`${outputFolder}_clean_data.csv`] = cleanCSV;
+            console.log('Clean data CSV regenerated with Sample_ID column');
+        }
+
+        function updatePlateLayoutValidation(revalidationResults) {
+            if (!revalidationResults) return;
+            
+            plateLayoutValidationResults = revalidationResults;
+            displayPlateLayoutResults(revalidationResults, plateLayoutData);
         }
 
         function updateProgress(percent) {
@@ -862,6 +1343,35 @@
                     document.getElementById('validateOptionsBtn').disabled = false;
                     document.getElementById('runAnalysisBtn').disabled = false;
                     console.log('Preprocessing completed successfully');
+                    
+                    // Hide the pre-processing note and enable full validation
+                    const preProcessingNote = document.getElementById('plateLayoutPreProcessingNote');
+                    if (preProcessingNote) {
+                        preProcessingNote.style.display = 'none';
+                    }
+                    
+                    // Re-validate and apply plate layout if data exists
+                    if (plateLayoutData) {
+                        console.log('Re-validating plate layout with processed Luminex data...');
+                        const revalidationResults = validatePlateLayout(plateLayoutData, [], []);
+                        plateLayoutValidationResults = revalidationResults;
+                        displayPlateLayoutResults(revalidationResults, plateLayoutData);
+                        
+                        // Apply Sample_IDs to the processed data
+                        applyPlateLayoutToData();
+                        
+                        // Regenerate analysis results if they exist to include Sample_ID
+                        if (Object.keys(analysisResults).length > 0) {
+                            console.log('Regenerating analysis results to include Sample_IDs...');
+                            // Clear existing results and regenerate data tables
+                            document.getElementById('dataTablesContainer').innerHTML = '';
+                            Object.keys(analysisResults).forEach(analyte => {
+                                generateAnalyteDataTables(analyte, analysisResults[analyte]);
+                            });
+                        }
+                        
+                        updateStatus('Plate layout re-validated and Sample_IDs applied to data', 'info');
+                    }
                     
                 } catch (error) {
                     console.error('Preprocessing error:', error);
@@ -1891,8 +2401,9 @@
             // Calculate threshold for minimum acceptable signal
             // Use multiple criteria to determine if a standard is too close to background noise
             const bgVariability = bgStd > 0 ? bgStd * 2 : 0; // 2 standard deviations of background
+            const bgMeanThreshold = bgMean > 0 ? bgMean * 3 : 0; // 3 × background mean
             const minAbsoluteThreshold = 10; // Minimum 10 MFI (since background is already subtracted)
-            const threshold = Math.max(bgVariability, minAbsoluteThreshold);
+            const threshold = Math.max(bgVariability, bgMeanThreshold, minAbsoluteThreshold);
             
             // Find the first standard that meets our criteria
             for (let i = 0; i < sortedStandards.length; i++) {
@@ -1901,7 +2412,7 @@
                 
                 // Balanced criteria for excluding low standards:
                 // 1. Must have positive signal after background subtraction
-                // 2. Must be above background noise threshold
+                // 2. Must be above background noise threshold (max of: 2×bgStd, 3×bgMean, 10 MFI)
                 const hasPositiveSignal = correctedMfi > 0;
                 const aboveNoiseThreshold = correctedMfi >= threshold;
                 
@@ -1927,7 +2438,17 @@
             if (firstValidIdx > 0) {
                 filteredStandards = sortedStandards.slice(firstValidIdx);
                 lowStdFiltered = true;
-                console.log(`Filtering low standards for ${analyte}: excluding first ${firstValidIdx} standards (threshold: ${threshold.toFixed(4)} MFI, includes pattern-based filtering)`);
+                // Determine which threshold component was used
+                let thresholdSource = '';
+                if (threshold === bgVariability) {
+                    thresholdSource = `2×bgStd (${bgVariability.toFixed(4)})`;
+                } else if (threshold === bgMeanThreshold) {
+                    thresholdSource = `3×bgMean (${bgMeanThreshold.toFixed(4)})`;
+                } else {
+                    thresholdSource = `absolute minimum (${minAbsoluteThreshold})`;
+                }
+                
+                console.log(`Filtering low standards for ${analyte}: excluding first ${firstValidIdx} standards (threshold: ${threshold.toFixed(4)} MFI from ${thresholdSource}, includes pattern-based filtering)`);
             } else {
                 // No filtering needed - use all standards in their original order
                 filteredStandards = standards;
@@ -2050,6 +2571,7 @@
                 return {
                     sample: sampleName,
                     location: row.Location || row.location || '',
+                    sampleId: row.Sample_ID || '', // Add Sample_ID from plate layout
                     mfi: parseFloat(row[analyte]) || 0,
                     concentration: concentration // This is expected_conc for standards
                 };
@@ -2174,21 +2696,30 @@
                 }
             }
             
+            // Calculate quality flags first
+            const minStdMfi = Math.min(...finalStandards.map(s => s.correctedMfi));
+            const maxStdMfi = Math.max(...finalStandards.map(s => s.correctedMfi));
+            
             // Calculate concentrations for all samples
             analyteData.forEach(row => {
+                // Set quality flags first
+                row.belowMinMfi = (row.correctedMfi < minStdMfi || row.correctedMfi < 0) ? 1 : 0;
+                row.aboveMaxMfi = row.correctedMfi > maxStdMfi ? 1 : 0;
+                
                 if (row.concentration === null) { // Not a standard
-                    row.calculatedConc = interpolateConcentration(row.correctedMfi, curveParams);
-                    row.finalConc = row.calculatedConc !== null ? row.calculatedConc * dilutionFactor : null;
+                    // Only calculate concentration if not flagged as below min MFI
+                    if (row.belowMinMfi === 0) {
+                        row.calculatedConc = interpolateConcentration(row.correctedMfi, curveParams);
+                        row.finalConc = row.calculatedConc !== null ? row.calculatedConc * dilutionFactor : null;
+                    } else {
+                        // Set to null for samples below min MFI
+                        row.calculatedConc = null;
+                        row.finalConc = null;
+                    }
                 } else { // It's a standard
                     row.calculatedConc = row.concentration; // Expected concentration for standards
                     row.finalConc = row.concentration; // Standards don't get dilution factor
                 }
-                
-                const minStdMfi = Math.min(...finalStandards.map(s => s.correctedMfi));
-                const maxStdMfi = Math.max(...finalStandards.map(s => s.correctedMfi));
-                
-                row.belowMinMfi = (row.correctedMfi < minStdMfi || row.correctedMfi < 0) ? 1 : 0;
-                row.aboveMaxMfi = row.correctedMfi > maxStdMfi ? 1 : 0;
                 
                 if (hookDetected && detectHook) {
                     const hookPeakMfi = usableStandards[hookResult.peakIdx].correctedMfi;
@@ -2415,10 +2946,9 @@ popt_list_py # This is returned to JavaScript
             }
             
             // Invert the 4PL equation to get concentration from MFI
-            if (mfi <= D || mfi >= A) { // Strict inequality for mfi >= A if B is positive
-                 if (mfi <= D && D < A) return Math.pow(10, C - (1/B) * Math.log10((A-D)/(D + 1e-9 - D)-1)); // very low conc
-                 if (mfi >= A && A > D) return Math.pow(10, C - (1/B) * Math.log10((A-D)/(A - 1e-9 - D)-1)); // very high conc
-                return null; 
+            // For MFI values outside the standard curve range, return null for reliable results
+            if (mfi <= D || mfi >= A) {
+                return null; // Don't extrapolate - return null for values outside curve range
             }
             
             const ratio = (A - D) / (mfi - D) - 1;
@@ -3195,7 +3725,7 @@ popt_list_py # This is returned to JavaScript
             
             // Table header
             const headerRow = table.insertRow();
-            ['Sample', 'Location', 'Raw MFI', 'Corrected MFI', 'Calc. Conc', 'Final Conc', 'Below Min MFI', 'Below Cutoff', 'Above Max MFI', 'In Hook Zone'].forEach(text => {
+            ['Sample', 'Location', 'Sample_ID', 'Raw MFI', 'Corrected MFI', 'Calc. Conc', 'Final Conc', 'Below Min MFI', 'Below Cutoff', 'Above Max MFI', 'In Hook Zone'].forEach(text => {
                 const th = document.createElement('th');
                 th.textContent = text;
                 th.style.border = '1px solid #ddd';
@@ -3211,6 +3741,7 @@ popt_list_py # This is returned to JavaScript
                 [
                     row.sample,
                     row.location,
+                    row.sampleId || '', // Add Sample_ID column
                     formatMfiConc(row.mfi),
                     formatMfiConc(row.correctedMfi),
                     formatMfiConc(row.calculatedConc),
@@ -3756,9 +4287,42 @@ popt_list_py # This is returned to JavaScript
                 // IQC values export - matches Python version
                 const iqcCSV = generateIQCExportCSV();
                 if (iqcCSV) {
-                    const iqcKey = `${outputFolder}_${new Date().toISOString().slice(0,19).replace(/[:.]/g, '-')}_IQC_values.csv`;
+                    const iqcKey = `${outputFolder}_IQC_values.csv`;
                     generatedFiles[iqcKey] = iqcCSV;
                     addDownloadItem('IQC Values Export', iqcCSV, iqcKey);
+                }
+                
+                // Below Min MFI export - samples that need higher concentration testing
+                const belowMinCSV = generateBelowMinMFIExportCSV();
+                if (belowMinCSV) {
+                    const belowMinKey = `${outputFolder}_samples_below_min_MFI.csv`;
+                    generatedFiles[belowMinKey] = belowMinCSV;
+                    addDownloadItem('Samples Below Min MFI (Test Higher Concentration)', belowMinCSV, belowMinKey);
+                }
+                
+                // Above Max MFI / Hook Zone export - samples that need dilution
+                const aboveMaxCSV = generateAboveMaxMFIExportCSV();
+                if (aboveMaxCSV) {
+                    const aboveMaxKey = `${outputFolder}_samples_need_dilution.csv`;
+                    generatedFiles[aboveMaxKey] = aboveMaxCSV;
+                    addDownloadItem('Samples Need Dilution (Above Max MFI/Hook Zone)', aboveMaxCSV, aboveMaxKey);
+                }
+                
+                // HitPicking file for robotic liquid handling - samples that need dilution
+                const hitPickingCSV = generateHitPickingCSV();
+                if (hitPickingCSV) {
+                    const timestamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z/, '').replace('T', '_');
+                    const hitPickingKey = `HitPicking_${timestamp}.csv`;
+                    generatedFiles[hitPickingKey] = hitPickingCSV;
+                    addDownloadItem('HitPicking File (Robotic Liquid Handler)', hitPickingCSV, hitPickingKey);
+                }
+                
+                // Complete data table export - all samples and analytes
+                const completeDataCSV = generateCompleteDataTableCSV();
+                if (completeDataCSV) {
+                    const completeDataKey = `${outputFolder}_complete_data_table.csv`;
+                    generatedFiles[completeDataKey] = completeDataCSV;
+                    addDownloadItem('Complete Data Table (All Samples & Analytes)', completeDataCSV, completeDataKey);
                 }
                 
                 // Add combined chart download items
@@ -3802,6 +4366,232 @@ popt_list_py # This is returned to JavaScript
             
             return csv;
         }
+
+        function generateBelowMinMFIExportCSV() {
+            // Generate export for samples below minimum MFI (considered negative/too low)
+            // These samples could potentially be tested at higher concentrations
+            // Excludes standards, controls, IQCs, backgrounds, and blanks
+            
+            const allAnalytes = Object.keys(analysisResults);
+            if (allAnalytes.length === 0) return null;
+            
+            let belowMinSamples = new Map(); // Map to store unique samples with below min MFI flags
+            
+            // Find all samples with belowMinMfi = 1 across all analytes (excluding controls/standards)
+            allAnalytes.forEach(analyte => {
+                const results = analysisResults[analyte];
+                const analyteBelowMinSamples = results.data.filter(row => {
+                    if (row.belowMinMfi !== 1) return false;
+                    
+                    // Exclude controls, standards, IQCs, and background samples
+                    const sampleName = String(row.sample || '').toLowerCase();
+                    const isControlSample = sampleName.includes('standard') || 
+                                          sampleName.includes('control') || 
+                                          sampleName.includes('iqc') || 
+                                          sampleName.includes('background') ||
+                                          sampleName.includes('blank') ||
+                                          sampleName.includes('cal'); // calibrator
+                    
+                    return !isControlSample; // Only include actual samples
+                });
+                
+                analyteBelowMinSamples.forEach(sample => {
+                    const key = `${sample.sample}|${sample.location || ''}|${sample.sampleId || ''}`;
+                    if (!belowMinSamples.has(key)) {
+                        belowMinSamples.set(key, {
+                            sample: sample.sample,
+                            location: sample.location || '',
+                            sampleId: sample.sampleId || '',
+                            analytes: []
+                        });
+                    }
+                    belowMinSamples.get(key).analytes.push(analyte);
+                });
+            });
+            
+            if (belowMinSamples.size === 0) return null;
+            
+            // Prepare headers
+            const headers = ['Sample', 'Location', 'Sample_ID', 'Analytes_Below_Min_MFI', 'Recommendation'];
+            let csv = headers.join(',') + '\n';
+            
+            // Generate data rows
+            Array.from(belowMinSamples.values()).forEach(sampleInfo => {
+                const row = [
+                    `"${String(sampleInfo.sample).replace(/"/g, '""')}"`,
+                    `"${String(sampleInfo.location).replace(/"/g, '""')}"`,
+                    `"${String(sampleInfo.sampleId).replace(/"/g, '""')}"`,
+                    `"${sampleInfo.analytes.join('; ')}"`,
+                    '"Consider testing at higher concentration (less diluted)"'
+                ];
+                csv += row.join(',') + '\n';
+            });
+            
+            return csv;
+        }
+
+        function generateAboveMaxMFIExportCSV() {
+            // Generate export for samples above maximum MFI or in hook zone
+            // These samples need to be tested at lower concentrations (more diluted)
+            // Excludes standards, controls, IQCs, backgrounds, and blanks
+            
+            const allAnalytes = Object.keys(analysisResults);
+            if (allAnalytes.length === 0) return null;
+            
+            let aboveMaxSamples = new Map(); // Map to store unique samples needing dilution
+            
+            // Find all samples with aboveMaxMfi = 1 or inHookZone = 1 across all analytes (excluding controls/standards)
+            allAnalytes.forEach(analyte => {
+                const results = analysisResults[analyte];
+                const analyteAboveMaxSamples = results.data.filter(row => {
+                    if (row.aboveMaxMfi !== 1 && row.inHookZone !== 1) return false;
+                    
+                    // Exclude controls, standards, IQCs, and background samples
+                    const sampleName = String(row.sample || '').toLowerCase();
+                    const isControlSample = sampleName.includes('standard') || 
+                                          sampleName.includes('control') || 
+                                          sampleName.includes('iqc') || 
+                                          sampleName.includes('background') ||
+                                          sampleName.includes('blank') ||
+                                          sampleName.includes('cal'); // calibrator
+                    
+                    return !isControlSample; // Only include actual samples
+                });
+                
+                analyteAboveMaxSamples.forEach(sample => {
+                    const key = `${sample.sample}|${sample.location || ''}|${sample.sampleId || ''}`;
+                    if (!aboveMaxSamples.has(key)) {
+                        aboveMaxSamples.set(key, {
+                            sample: sample.sample,
+                            location: sample.location || '',
+                            sampleId: sample.sampleId || '',
+                            aboveMaxAnalytes: [],
+                            hookZoneAnalytes: []
+                        });
+                    }
+                    
+                    const sampleData = aboveMaxSamples.get(key);
+                    if (sample.aboveMaxMfi === 1) {
+                        sampleData.aboveMaxAnalytes.push(analyte);
+                    }
+                    if (sample.inHookZone === 1) {
+                        sampleData.hookZoneAnalytes.push(analyte);
+                    }
+                });
+            });
+            
+            if (aboveMaxSamples.size === 0) return null;
+            
+            // Prepare headers
+            const headers = ['Sample', 'Location', 'Sample_ID', 'Above_Max_MFI_Analytes', 'Hook_Zone_Analytes', 'Recommendation'];
+            let csv = headers.join(',') + '\n';
+            
+            // Generate data rows
+            Array.from(aboveMaxSamples.values()).forEach(sampleInfo => {
+                const row = [
+                    `"${String(sampleInfo.sample).replace(/"/g, '""')}"`,
+                    `"${String(sampleInfo.location).replace(/"/g, '""')}"`,
+                    `"${String(sampleInfo.sampleId).replace(/"/g, '""')}"`,
+                    `"${sampleInfo.aboveMaxAnalytes.join('; ')}"`,
+                    `"${sampleInfo.hookZoneAnalytes.join('; ')}"`,
+                    '"Consider testing at lower concentration (more diluted)"'
+                ];
+                csv += row.join(',') + '\n';
+            });
+            
+            return csv;
+        }
+
+        function generateHitPickingCSV() {
+            // Generate HitPicking file for robotic liquid handling
+            // Based on samples that need dilution (Above Max MFI or Hook Zone)
+            // Excludes standards, controls, IQCs, backgrounds, and blanks
+            
+            const allAnalytes = Object.keys(analysisResults);
+            if (allAnalytes.length === 0) return null;
+            
+            let samplesNeedingDilution = new Map(); // Map to store unique samples needing dilution
+            
+            // Find all samples with aboveMaxMfi = 1 or inHookZone = 1 across all analytes (excluding controls/standards)
+            allAnalytes.forEach(analyte => {
+                const results = analysisResults[analyte];
+                const analyteSamples = results.data.filter(row => {
+                    if (row.aboveMaxMfi !== 1 && row.inHookZone !== 1) return false;
+                    
+                    // Exclude controls, standards, IQCs, and background samples
+                    const sampleName = String(row.sample || '').toLowerCase();
+                    const isControlSample = sampleName.includes('standard') || 
+                                          sampleName.includes('control') || 
+                                          sampleName.includes('iqc') || 
+                                          sampleName.includes('background') ||
+                                          sampleName.includes('blank') ||
+                                          sampleName.includes('cal'); // calibrator
+                    
+                    return !isControlSample; // Only include actual samples
+                });
+                
+                analyteSamples.forEach(sample => {
+                    const key = `${sample.sample}|${sample.location || ''}|${sample.sampleId || ''}`;
+                    if (!samplesNeedingDilution.has(key)) {
+                        // Extract well position from Location format like "1(1,A1)" -> "A1"
+                        let sourceWell = sample.location || '';
+                        const wellMatch = sourceWell.match(/([A-H]\d{1,2})/);
+                        if (wellMatch) {
+                            sourceWell = wellMatch[1]; // Extract just the well position (e.g., A1, H12)
+                        }
+                        
+                        samplesNeedingDilution.set(key, {
+                            sampleId: sample.sampleId || sample.sample, // Use Sample_ID if available, otherwise sample name
+                            sourceWell: sourceWell,
+                            sample: sample.sample
+                        });
+                    }
+                });
+            });
+            
+            if (samplesNeedingDilution.size === 0) return null;
+            
+            // Generate target wells in plate order (A1, B1, C1, D1, E1, F1, G1, H1, A2, B2, etc.)
+            function generateTargetWells(count) {
+                const wells = [];
+                const rows = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+                let col = 1;
+                let rowIndex = 0;
+                
+                for (let i = 0; i < count; i++) {
+                    wells.push(rows[rowIndex] + col);
+                    rowIndex++;
+                    if (rowIndex >= rows.length) {
+                        rowIndex = 0;
+                        col++;
+                    }
+                }
+                return wells;
+            }
+            
+            // Create header with proper Unicode character for µl (U+00B5)
+            const headers = ['SampleID', 'SourcePlateID', 'SourceWell', 'TargetPlateID', 'TargetWell', 'TransferVolume [\u00B5l]'];
+            let csv = headers.join(';') + '\n';
+            
+            // Generate target wells
+            const sampleArray = Array.from(samplesNeedingDilution.values());
+            const targetWells = generateTargetWells(sampleArray.length);
+            
+            // Generate data rows
+            sampleArray.forEach((sampleInfo, index) => {
+                const row = [
+                    sampleInfo.sampleId, // Use Sample_ID from plate layout
+                    'Input',              // Source plate is always "Input"
+                    sampleInfo.sourceWell, // Original well location from Luminex
+                    'Output',             // Target plate is always "Output"
+                    targetWells[index],   // Sequential target well assignment
+                    '10'                  // Default transfer volume 10µl
+                ];
+                csv += row.join(';') + '\n';
+            });
+            
+            return csv;
+        }
                         
         function generateIQCExportCSV() {
             // Generate IQC (Internal Quality Control) values export for samples matching IQC pattern
@@ -3834,7 +4624,8 @@ popt_list_py # This is returned to JavaScript
                         if (!iqcSamples.has(key)) {
                             iqcSamples.set(key, {
                                 sample: sample.sample,
-                                location: sample.location || ''
+                                location: sample.location || '',
+                                sampleId: sample.sampleId || ''
                             });
                         }
                     });
@@ -3846,8 +4637,8 @@ popt_list_py # This is returned to JavaScript
                 return null;
             }
             
-            // Prepare headers: Sample, Location, then 4 columns for each analyte
-            const headers = ['Sample', 'Location'];
+            // Prepare headers: Sample, Location, Sample_ID, then 4 columns for each analyte
+            const headers = ['Sample', 'Location', 'Sample_ID'];
             allAnalytes.forEach(analyte => {
                 // Clean analyte name for column headers (replace spaces/hyphens with dots)
                 const analyteClean = analyte.replace(/[\s-]/g, '.');
@@ -3865,7 +4656,8 @@ popt_list_py # This is returned to JavaScript
             Array.from(iqcSamples.values()).forEach(iqcSample => {
                 const row = [
                     `"${String(iqcSample.sample).replace(/"/g, '""')}"`,
-                    `"${String(iqcSample.location).replace(/"/g, '""')}"`
+                    `"${String(iqcSample.location).replace(/"/g, '""')}"`,
+                    `"${String(iqcSample.sampleId || '').replace(/"/g, '""')}"`
                 ];
                 
                 // For each analyte, find matching data and add the 4 columns
@@ -3947,6 +4739,93 @@ popt_list_py # This is returned to JavaScript
                     updateStatus('Directory selection failed. Files will download to default location.', 'info');
                 }
             }
+        }
+
+        function generateCompleteDataTableCSV() {
+            // Generate complete data table CSV with all samples and analytes in wide format
+            // Columns: Sample, Location, Sample_ID, then 4 columns per analyte (Raw_MFI, Corrected_MFI, Calc_Conc, Final_Conc)
+            
+            const allAnalytes = Object.keys(analysisResults);
+            if (allAnalytes.length === 0) {
+                return null;
+            }
+            
+            // Collect all unique samples across all analytes
+            const allSamples = new Map(); // Map to store unique samples with their metadata
+            
+            allAnalytes.forEach(analyte => {
+                const results = analysisResults[analyte];
+                if (!results || !results.data) return;
+                
+                results.data.forEach(row => {
+                    const key = `${row.sample}|${row.location || ''}`;
+                    if (!allSamples.has(key)) {
+                        allSamples.set(key, {
+                            sample: row.sample,
+                            location: row.location || '',
+                            sampleId: row.sampleId || '',
+                            data: {}
+                        });
+                    }
+                    
+                    // Store data for this analyte
+                    allSamples.get(key).data[analyte] = {
+                        mfi: row.mfi,
+                        correctedMfi: row.correctedMfi,
+                        calculatedConc: row.calculatedConc,
+                        finalConc: row.finalConc,
+                        belowMinMfi: row.belowMinMfi || 0,
+                        belowCutoff: row.belowCutoff || 0,
+                        aboveMaxMfi: row.aboveMaxMfi || 0,
+                        inHookZone: row.inHookZone || 0
+                    };
+                });
+            });
+            
+            // Create header row with analyte columns
+            const headers = ['Sample', 'Location', 'Sample_ID'];
+            
+            // Add 4 columns for each analyte
+            allAnalytes.forEach(analyte => {
+                const analyteClean = analyte.replace(/[^a-zA-Z0-9]/g, '_');
+                headers.push(
+                    `${analyteClean}_Raw_MFI`,
+                    `${analyteClean}_Corrected_MFI`,
+                    `${analyteClean}_Calc_Conc`,
+                    `${analyteClean}_Final_Conc`
+                );
+            });
+            
+            let csv = headers.join(',') + '\n';
+            
+            // Generate data rows for each unique sample
+            Array.from(allSamples.values()).forEach(sample => {
+                const row = [
+                    `"${String(sample.sample).replace(/"/g, '""')}"`,
+                    `"${String(sample.location).replace(/"/g, '""')}"`,
+                    `"${String(sample.sampleId).replace(/"/g, '""')}"`
+                ];
+                
+                // For each analyte, add the 4 data columns
+                allAnalytes.forEach(analyte => {
+                    const analyteData = sample.data[analyte];
+                    if (analyteData) {
+                        row.push(
+                            formatMfiConc(analyteData.mfi),
+                            formatMfiConc(analyteData.correctedMfi),
+                            formatMfiConc(analyteData.calculatedConc),
+                            formatMfiConc(analyteData.finalConc)
+                        );
+                    } else {
+                        // Add empty values if no data for this analyte
+                        row.push('', '', '', '');
+                    }
+                });
+                
+                csv += row.join(',') + '\n';
+            });
+            
+            return csv;
         }
 
         async function downloadFile(filename, content) {
