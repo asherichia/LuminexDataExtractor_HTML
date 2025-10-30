@@ -174,6 +174,20 @@
                             <small style="display: block; font-weight: normal; color: #666; margin-top: 0.25rem;">
                                 CSV with standard sample concentrations (optional - will auto-detect if not provided)
                             </small>
+                            <small style="display: block; font-weight: normal; color: #666; margin-top: 0.5rem;">
+                                <strong>Simple format (same standards for all analytes):</strong><br>
+                                <code style="background: #f8f9fa; padding: 2px 6px; border-radius: 3px;">Sample,Concentration</code><br>
+                                <code style="background: #f8f9fa; padding: 2px 6px; border-radius: 3px;">Standard1,100000</code><br>
+                                <code style="background: #f8f9fa; padding: 2px 6px; border-radius: 3px;">Standard2,10000</code>
+                            </small>
+                            <small style="display: block; font-weight: normal; color: #666; margin-top: 0.5rem;">
+                                <strong>Analyte-specific format (different standards per analyte):</strong><br>
+                                <code style="background: #f8f9fa; padding: 2px 6px; border-radius: 3px;">Analyte,Sample,Concentration</code><br>
+                                <code style="background: #f8f9fa; padding: 2px 6px; border-radius: 3px;">IL-6,Standard1,10000</code><br>
+                                <code style="background: #f8f9fa; padding: 2px 6px; border-radius: 3px;">IL-6,Standard2,1000</code><br>
+                                <code style="background: #f8f9fa; padding: 2px 6px; border-radius: 3px;">TNF-alpha,Standard1,50000</code><br>
+                                <code style="background: #f8f9fa; padding: 2px 6px; border-radius: 3px;">TNF-alpha,Standard2,5000</code>
+                            </small>
                         </label>
                         <div class="file-input">
                             <input type="file" id="standardsFile" accept=".csv" />
@@ -1711,46 +1725,91 @@
         async function loadStandardsFile(file) {
             return new Promise((resolve, reject) => {
                 const reader = new FileReader();
-                
+
                 reader.onload = function(e) {
                     try {
                         const text = e.target.result;
                         const lines = text.split(/\r?\n/);
-                        
+
                         // Parse CSV
                         const data = lines.map(line => {
-                            return line.split(',').map(cell => cell.trim().replace(/^"|"$/g, ''));
+                            return line.split(',').map(cell => cell.trim().replace(/^"|"$/g, '').replace(/^\uFEFF/, '')); // Remove BOM
                         });
-                        
+
                         // Find headers
-                        let headerRow = 0; // Assuming headers are on the first line
-                        let headers = data[headerRow];
-                        
-                        // Convert to object format
-                        const standardsMap = {};
-                        for (let i = 1; i < data.length; i++) {
-                            const row = data[i];
-                            if (row.length >= 2 && row[0] && row[1]) { // Ensure Sample and Concentration exist
-                                const sample = row[0].trim();
-                                const concentration = parseFloat(row[1]);
-                                if (!isNaN(concentration)) {
-                                    standardsMap[sample] = concentration;
+                        let headerRow = 0;
+                        let headers = data[headerRow].map(h => h.toLowerCase());
+
+                        console.log('Standards file headers:', headers);
+
+                        // Check if this is analyte-specific format (has 'Analyte' column) or simple format (Sample, Concentration)
+                        const analyteColIdx = headers.findIndex(h => h.includes('analyte'));
+                        const sampleColIdx = headers.findIndex(h => h.includes('sample'));
+                        const concentrationColIdx = headers.findIndex(h => h.includes('concentration') || h.includes('conc'));
+
+                        if (concentrationColIdx === -1) {
+                            reject(new Error('Standards file must have a "Concentration" column'));
+                            return;
+                        }
+
+                        if (analyteColIdx !== -1) {
+                            // Analyte-specific format: { analyteNam: { Sample: Concentration } }
+                            console.log('Detected analyte-specific standards format');
+                            const analyteStandardsMap = {};
+
+                            for (let i = 1; i < data.length; i++) {
+                                const row = data[i];
+                                if (row.length > Math.max(analyteColIdx, sampleColIdx, concentrationColIdx)) {
+                                    const analyte = row[analyteColIdx]?.trim();
+                                    const sample = row[sampleColIdx]?.trim();
+                                    const concentration = parseFloat(row[concentrationColIdx]);
+
+                                    if (analyte && sample && !isNaN(concentration)) {
+                                        // Initialize analyte entry if not exists
+                                        if (!analyteStandardsMap[analyte]) {
+                                            analyteStandardsMap[analyte] = {};
+                                        }
+                                        analyteStandardsMap[analyte][sample] = concentration;
+                                    }
                                 }
                             }
+
+                            console.log('Parsed analyte-specific standards:', analyteStandardsMap);
+                            resolve({ type: 'analyte-specific', data: analyteStandardsMap });
+
+                        } else if (sampleColIdx !== -1) {
+                            // Simple format: { Sample: Concentration } - applies to all analytes
+                            console.log('Detected simple standards format (applies to all analytes)');
+                            const standardsMap = {};
+
+                            for (let i = 1; i < data.length; i++) {
+                                const row = data[i];
+                                if (row.length > Math.max(sampleColIdx, concentrationColIdx)) {
+                                    const sample = row[sampleColIdx]?.trim();
+                                    const concentration = parseFloat(row[concentrationColIdx]);
+
+                                    if (sample && !isNaN(concentration)) {
+                                        standardsMap[sample] = concentration;
+                                    }
+                                }
+                            }
+
+                            console.log('Parsed simple standards:', standardsMap);
+                            resolve({ type: 'simple', data: standardsMap });
+
+                        } else {
+                            reject(new Error('Standards file must have "Sample" column (and optionally "Analyte" column for analyte-specific standards)'));
                         }
-                        
-                        console.log('Parsed standards:', standardsMap);
-                        resolve(standardsMap);
-                        
+
                     } catch (error) {
                         reject(new Error('Error parsing standards file: ' + error.message));
                     }
                 };
-                
+
                 reader.onerror = function(error) {
                     reject(new Error('Error reading standards file: ' + error.message));
                 };
-                
+
                 reader.readAsText(file);
             });
         }
@@ -1811,30 +1870,66 @@
             });
         }
 
-        function mergeStandardsWithData(processedData, standardsMap) {
+        function mergeStandardsWithData(processedData, standardsObject, currentAnalyte = null) {
             console.log('Starting merge process...');
-            console.log('Standards map:', standardsMap);
+            console.log('Standards object:', standardsObject);
+            console.log('Current analyte:', currentAnalyte);
             console.log('Sample data preview:', processedData.data.slice(0, 5).map(row => ({sample: row.Sample || row.sample})));
-            
+
             // Create a deep copy of the processed data
             const mergedData = {
                 headers: [...processedData.headers],
                 data: processedData.data.map(row => ({ ...row }))
             };
-            
+
             // Add Concentration header if not already present
             if (!mergedData.headers.includes('Concentration')) {
                 mergedData.headers.push('Concentration');
             }
-            
+
             // Track merge statistics
             let mergeCount = 0;
             let standardsFound = [];
-            
+
+            // Determine which standards map to use based on format
+            let standardsMap = null;
+
+            if (standardsObject.type === 'analyte-specific') {
+                // Use analyte-specific standards if available for current analyte
+                if (currentAnalyte && standardsObject.data[currentAnalyte]) {
+                    standardsMap = standardsObject.data[currentAnalyte];
+                    console.log(`Using analyte-specific standards for ${currentAnalyte}:`, standardsMap);
+                } else {
+                    console.warn(`No standards found for analyte: ${currentAnalyte}. Available analytes:`, Object.keys(standardsObject.data));
+                    // Try to find a case-insensitive match
+                    const analyteLower = currentAnalyte?.toLowerCase();
+                    const matchingAnalyte = Object.keys(standardsObject.data).find(a => a.toLowerCase() === analyteLower);
+                    if (matchingAnalyte) {
+                        standardsMap = standardsObject.data[matchingAnalyte];
+                        console.log(`Found case-insensitive match: ${matchingAnalyte}`);
+                    } else {
+                        console.error(`No standards defined for analyte: ${currentAnalyte}`);
+                        // Return data with null concentrations
+                        mergedData.data.forEach(row => {
+                            row.Concentration = null;
+                        });
+                        return mergedData;
+                    }
+                }
+            } else if (standardsObject.type === 'simple') {
+                // Use simple format - applies to all analytes
+                standardsMap = standardsObject.data;
+                console.log('Using simple standards format (applies to all analytes):', standardsMap);
+            } else {
+                // Legacy format (backwards compatibility) - assume it's a simple map
+                standardsMap = standardsObject;
+                console.log('Using legacy standards format:', standardsMap);
+            }
+
             // Merge concentration values into each row (like Python script line 283: df.merge(std_map, on='Sample', how='left'))
             mergedData.data.forEach(row => {
                 const sampleName = row.Sample || row.sample;
-                if (sampleName && standardsMap[sampleName]) {
+                if (sampleName && standardsMap && standardsMap[sampleName]) {
                     row.Concentration = standardsMap[sampleName];
                     standardsFound.push(`${sampleName} -> ${standardsMap[sampleName]}`);
                     mergeCount++;
@@ -1844,7 +1939,7 @@
                     row.Concentration = null;
                 }
             });
-            
+
             console.log(`Merge completed: ${mergeCount} standards matched`);
             console.log('Standards found:', standardsFound);
             console.log('Merged data structure:', mergedData);
@@ -2127,18 +2222,25 @@
                 // Ensure Pyodide and packages are loaded before starting analysis loop
                 await loadPyodideAndPackages();
                 
-                // Load and merge standards file if provided (like Python script does)
-                let mergedData = null;
+                // Load standards file if provided (will be merged per-analyte later)
+                let standardsData = null;
                 const standardsFile = document.getElementById('standardsFile').files[0];
                 if (standardsFile) {
-                    updateStatus('Loading and merging standards file...', 'info');
-                    const standardsData = await loadStandardsFile(standardsFile);
+                    updateStatus('Loading standards file...', 'info');
+                    standardsData = await loadStandardsFile(standardsFile);
                     console.log('Standards loaded:', standardsData);
-                    
-                    // Merge standards with processed data (like Python script line 283)
-                    mergedData = mergeStandardsWithData(processedData, standardsData);
-                    console.log('Data merged with standards:', mergedData);
-                } else {
+
+                    if (standardsData.type === 'analyte-specific') {
+                        console.log('Detected analyte-specific standards - will merge per analyte');
+                        const analyteNames = Object.keys(standardsData.data);
+                        updateStatus(`Loaded analyte-specific standards for: ${analyteNames.join(', ')}`, 'info');
+                    } else {
+                        console.log('Detected simple standards format - will apply to all analytes');
+                    }
+                }
+
+                let mergedData = null;
+                if (!standardsFile) {
                     // Auto-detect standards and assign concentrations (like Python script lines 286-314)
                     updateStatus('No standards file provided. Auto-detecting standard samples...', 'info');
                     
@@ -2203,9 +2305,23 @@
                     const analyte = analytesToProcess[i];
                     updateStatus(`Processing ${analyte}... (${i + 1}/${analytesToProcess.length})`, 'info');
                     updateProgress((i / analytesToProcess.length) * 90);
-                    
+
+                    // Merge standards for this specific analyte
+                    let analyteSpecificMergedData;
+                    if (standardsData) {
+                        // Standards file was provided - merge for this analyte
+                        analyteSpecificMergedData = mergeStandardsWithData(processedData, standardsData, analyte);
+                        console.log(`Merged data for analyte ${analyte}:`, analyteSpecificMergedData);
+                    } else if (mergedData) {
+                        // Auto-detected standards (already merged)
+                        analyteSpecificMergedData = mergedData;
+                    } else {
+                        // No standards at all
+                        analyteSpecificMergedData = processedData;
+                    }
+
                     // Perform analysis for this analyte using merged data
-                    const result = await analyzeAnalyte(analyte, mergedData, cutoffData); // analyzeAnalyte is now async
+                    const result = await analyzeAnalyte(analyte, analyteSpecificMergedData, cutoffData); // analyzeAnalyte is now async
                     analysisResults[analyte] = result;
                 }
                 
